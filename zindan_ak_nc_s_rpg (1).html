@@ -1,0 +1,3135 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zindan Akıncısı - Dikey Macera ve Grid Envanter RPG</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght=600;800&family=Inter:wght=400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #080b11;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .fantasy-title {
+            font-family: 'Cinzel', serif;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        .inventory-grid {
+            background-image: 
+                linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+            background-size: 44px 44px;
+        }
+    </style>
+</head>
+<body class="text-gray-100 min-h-screen overflow-x-hidden flex flex-col">
+
+    <header class="bg-slate-950/90 border-b border-slate-800 backdrop-blur px-6 py-4 flex flex-wrap justify-between items-center gap-4 sticky top-0 z-50 shadow-xl">
+        <div class="flex items-center gap-3">
+            <span class="text-3xl">⚔️</span>
+            <div>
+                <h1 class="text-xl md:text-2xl font-black tracking-wider text-amber-500 fantasy-title uppercase">ZİNDAN AKINCISI</h1>
+                <p class="text-xs text-slate-400">Geniş dikey katlar, minimap takibi & imleç odaklı nişan sistemi</p>
+            </div>
+        </div>
+        
+        <div class="flex flex-wrap items-center gap-4 text-sm">
+            <div class="bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800 flex items-center gap-2">
+                <span class="text-red-400">❤️ Can:</span>
+                <span id="player-hp-text" class="font-bold text-red-300">100/100</span>
+            </div>
+            <div class="bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800 flex items-center gap-2">
+                <span class="text-yellow-400">🪙 Altın:</span>
+                <span id="player-gold-text" class="font-bold text-yellow-300">150</span>
+            </div>
+            <div class="bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800 flex items-center gap-2">
+                <span class="text-blue-400">🏰 Kat:</span>
+                <span id="player-floor-text" class="font-bold text-blue-300">Kat 1</span>
+            </div>
+            <button onclick="restartGame()" class="bg-rose-600 hover:bg-rose-700 transition px-4 py-1.5 rounded-lg font-bold text-xs shadow-lg uppercase">
+                Yeniden Başla
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 w-full max-w-7xl mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <section class="lg:col-span-7 bg-slate-950 rounded-2xl border border-slate-800 p-4 flex flex-col gap-4 shadow-2xl">
+            <div class="flex justify-between items-center bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
+                <div class="text-xs text-slate-400 flex flex-col gap-1">
+                    <span class="text-amber-400 font-semibold text-sm">⚔️ Kontroller ve Hedef Takibi (Minimap Aktif!)</span>
+                    <span>Hareket: <b class="text-gray-200">A - D</b> | Çift Zıplama: <b class="text-gray-200">W / Boşluk</b></span>
+                    <span>Parabolik Nişan: <b class="text-gray-200">Mouse İmleci</b> | Saldırı: <b class="text-gray-200">Sol Tık / J</b> | Defans: <b class="text-gray-200">Sağ Tık</b></span>
+                </div>
+                <div class="text-right">
+                    <span class="text-xs text-slate-400 block">Kat Geçişi</span>
+                    <span id="monsters-left-count" class="text-sm font-bold text-rose-400">Bölümü temizle!</span>
+                </div>
+            </div>
+
+            <!-- Canvas Çerçevesi -->
+            <div class="relative w-full aspect-[16/9] bg-slate-900 rounded-xl overflow-hidden border-2 border-slate-800 shadow-inner">
+                <canvas id="dungeonCanvas" tabindex="0" class="w-full h-full block cursor-crosshair outline-none"></canvas>
+                
+                <!-- Oyun İçi Bildirimler -->
+                <div id="game-notif-toast" class="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/95 text-yellow-400 px-4 py-2 rounded-xl text-xs font-semibold border border-yellow-500/30 opacity-0 transition-opacity duration-300 pointer-events-none flex items-center gap-2 shadow-2xl z-40">
+                    <span>🔔</span> <span id="toast-message">Ganimet çantası bulundu!</span>
+                </div>
+
+                <!-- Oyun Sonu Ekranı -->
+                <div id="game-overlay-screen" class="absolute inset-0 bg-black/90 flex flex-col items-center justify-center p-6 text-center hidden z-40">
+                    <span id="overlay-icon" class="text-6xl mb-4">💀</span>
+                    <h2 id="overlay-title" class="text-3xl font-black text-rose-500 mb-2 uppercase fantasy-title">Yenildin!</h2>
+                    <p id="overlay-desc" class="text-slate-400 text-sm max-w-md mb-6">Zindanın derinliklerinde canavarlar seni alt etti. Ekipmanlarını daha iyi kullanmalıydın!</p>
+                    <button onclick="restartGame()" class="bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-700 hover:to-amber-700 px-6 py-3 rounded-xl font-bold text-sm tracking-wider uppercase transition shadow-lg">
+                        Tekrar Dene
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mobil Kontroller -->
+            <div class="flex justify-between items-center gap-4 mt-2 md:hidden">
+                <div class="flex gap-2">
+                    <button id="btn-left" class="bg-slate-800 active:bg-slate-700 text-white w-14 h-14 rounded-full flex items-center justify-center font-bold text-lg">◀</button>
+                    <button id="btn-right" class="bg-slate-800 active:bg-slate-700 text-white w-14 h-14 rounded-full flex items-center justify-center font-bold text-lg">▶</button>
+                </div>
+                <div class="flex gap-2 items-center">
+                    <button id="btn-defend" class="bg-blue-600 active:bg-blue-500 text-white w-14 h-14 rounded-full flex items-center justify-center font-bold text-xs">DEFANS</button>
+                    <button id="btn-jump" class="bg-indigo-600 active:bg-indigo-500 text-white w-14 h-14 rounded-full flex items-center justify-center font-bold text-lg">▲</button>
+                    <button id="btn-attack" class="bg-rose-600 active:bg-rose-500 text-white w-16 h-16 rounded-full flex items-center justify-center font-bold text-xs">SALDIR</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="lg:col-span-5 flex flex-col gap-6">
+            
+            <!-- Karakter Ekipmanları -->
+            <div class="bg-slate-950 rounded-2xl border border-slate-800 p-4 shadow-xl">
+                <h3 class="text-sm font-bold text-slate-400 mb-3 uppercase tracking-wider flex items-center gap-2">
+                    🛡️ Karakter Ekipmanları
+                </h3>
+                
+                <div class="grid grid-cols-12 gap-4 items-center">
+                    <div class="col-span-7 grid grid-cols-3 gap-2.5 justify-center">
+                        <div></div>
+                        <!-- Başlık Slotu -->
+                        <div id="slot-helmet" class="equip-slot w-14 h-14 bg-slate-900 border-2 border-slate-800 rounded-xl flex flex-col items-center justify-center relative cursor-pointer hover:border-amber-500/50 transition group" data-slot-type="helmet">
+                            <span class="text-[8px] text-slate-600 pointer-events-none">MİĞFER</span>
+                            <span class="text-base opacity-30 group-hover:opacity-60 transition pointer-events-none">🪖</span>
+                        </div>
+                        <div></div>
+
+                        <!-- Silah Slotu -->
+                        <div id="slot-weapon" class="equip-slot w-14 h-16 bg-slate-900 border-2 border-slate-800 rounded-xl flex flex-col items-center justify-center relative cursor-pointer hover:border-amber-500/50 transition group" data-slot-type="weapon">
+                            <span class="text-[8px] text-slate-600 pointer-events-none">SİLAH</span>
+                            <span class="text-base opacity-30 group-hover:opacity-60 transition pointer-events-none">🗡️</span>
+                        </div>
+                        <!-- Zırh Slotu -->
+                        <div id="slot-armor" class="equip-slot w-14 h-16 bg-slate-900 border-2 border-slate-800 rounded-xl flex flex-col items-center justify-center relative cursor-pointer hover:border-amber-500/50 transition group" data-slot-type="armor">
+                            <span class="text-[8px] text-slate-600 pointer-events-none">ZIRH</span>
+                            <span class="text-base opacity-30 group-hover:opacity-60 transition pointer-events-none">👕</span>
+                        </div>
+                        <!-- Kalkan Slotu -->
+                        <div id="slot-shield" class="equip-slot w-14 h-16 bg-slate-900 border-2 border-slate-800 rounded-xl flex flex-col items-center justify-center relative cursor-pointer hover:border-amber-500/50 transition group" data-slot-type="shield">
+                            <span class="text-[8px] text-slate-600 pointer-events-none">KALKAN</span>
+                            <span class="text-base opacity-30 group-hover:opacity-60 transition pointer-events-none">🛡️</span>
+                        </div>
+
+                        <div></div>
+                        <!-- Yüzük Slotu -->
+                        <div id="slot-ring" class="equip-slot w-14 h-14 bg-slate-900 border-2 border-slate-800 rounded-xl flex flex-col items-center justify-center relative cursor-pointer hover:border-amber-500/50 transition group" data-slot-type="ring">
+                            <span class="text-[8px] text-slate-600 pointer-events-none">YÜZÜK</span>
+                            <span class="text-base opacity-30 group-hover:opacity-60 transition pointer-events-none">💍</span>
+                        </div>
+                        <div></div>
+                    </div>
+
+                    <!-- İstatistik Paneli / XP ve Aktif Geliştirme -->
+                    <div class="col-span-5 bg-slate-900/60 p-3 rounded-xl border border-slate-800/80 text-[11px] flex flex-col gap-2.5">
+                        <div class="flex justify-between items-center">
+                            <span class="text-amber-400 font-bold uppercase text-[9px] tracking-wider">Nitelikler</span>
+                            <span id="stat-points-display" class="text-[8px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded font-bold hidden">Puan: <span id="stat-points-count">0</span></span>
+                        </div>
+                        
+                        <!-- Seviye & XP Göstergesi -->
+                        <div class="flex flex-col gap-1 bg-slate-950/40 p-1.5 rounded-lg border border-slate-800/50">
+                            <div class="flex justify-between text-[9px] font-bold">
+                                <span class="text-indigo-400">Svy <span id="stat-level">1</span></span>
+                                <span class="text-slate-400" id="stat-xp-text">0/100 XP</span>
+                            </div>
+                            <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                <div id="stat-xp-bar" class="bg-gradient-to-r from-indigo-500 to-purple-500 h-full transition-all duration-150" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between items-center h-5">
+                            <span class="text-slate-400">⚔️ Hasar:</span>
+                            <div class="flex items-center gap-1.5">
+                                <span id="stat-atk" class="font-bold text-rose-400">10-15</span>
+                                <button id="btn-up-atk" onclick="upgradeStat('atk')" class="w-4 h-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded flex items-center justify-center hidden active:scale-90">+</button>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center h-5">
+                            <span class="text-slate-400">🛡️ Savunma:</span>
+                            <div class="flex items-center gap-1.5">
+                                <span id="stat-def" class="font-bold text-blue-400">5</span>
+                                <button id="btn-up-def" onclick="upgradeStat('def')" class="w-4 h-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded flex items-center justify-center hidden active:scale-90">+</button>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center h-5">
+                            <span class="text-slate-400">🏃 Hız:</span>
+                            <div class="flex items-center gap-1.5">
+                                <span id="stat-speed" class="font-bold text-emerald-400">3.5</span>
+                                <button id="btn-up-speed" onclick="upgradeStat('speed')" class="w-4 h-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded flex items-center justify-center hidden active:scale-90">+</button>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center h-5">
+                            <span class="text-slate-400">❤️ Maks Can:</span>
+                            <div class="flex items-center gap-1.5">
+                                <span id="stat-maxhp" class="font-bold text-red-400">100</span>
+                                <button id="btn-up-hp" onclick="upgradeStat('hp')" class="w-4 h-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded flex items-center justify-center hidden active:scale-90">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-slate-950 rounded-2xl border border-slate-800 p-4 shadow-xl flex flex-col gap-3">
+                <h3 class="text-xs font-bold text-amber-500 uppercase tracking-wider flex items-center gap-2">
+                    🔨 Demirci Ocağı (Ekipman Birleştirme)
+                </h3>
+                
+                <div class="flex items-center justify-around bg-slate-900/40 p-3 rounded-xl border border-slate-800/80 relative">
+                    <!-- Slot 1 -->
+                    <div id="forge-slot1" class="forge-slot w-16 h-16 bg-slate-950 border-2 border-dashed border-slate-700 hover:border-amber-500/50 rounded-xl flex flex-col items-center justify-center relative cursor-pointer group" data-forge-slot="slot1">
+                        <span class="text-[9px] text-slate-600 pointer-events-none select-none">EŞYA A</span>
+                        <span class="text-lg opacity-20 group-hover:opacity-40 transition pointer-events-none">🛡️</span>
+                    </div>
+
+                    <span class="text-xl text-slate-600 font-bold select-none">➕</span>
+
+                    <!-- Slot 2 -->
+                    <div id="forge-slot2" class="forge-slot w-16 h-16 bg-slate-950 border-2 border-dashed border-slate-700 hover:border-amber-500/50 rounded-xl flex flex-col items-center justify-center relative cursor-pointer group" data-forge-slot="slot2">
+                        <span class="text-[9px] text-slate-600 pointer-events-none select-none">EŞYA B</span>
+                        <span class="text-lg opacity-20 group-hover:opacity-40 transition pointer-events-none">🛡️</span>
+                    </div>
+
+                    <span class="text-xl text-slate-600 font-bold select-none">＝</span>
+
+                    <!-- Sonuç Slotu -->
+                    <div id="forge-preview-slot" class="w-16 h-16 bg-slate-950/50 border-2 border-slate-800 rounded-xl flex flex-col items-center justify-center relative opacity-50">
+                        <span class="text-[9px] text-slate-600 select-none">SONUÇ</span>
+                        <span class="text-lg opacity-20">✨</span>
+                    </div>
+                </div>
+
+                <button id="btn-merge-weapons" onclick="mergeEquipments()" class="w-full bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-700 hover:to-yellow-700 disabled:from-slate-800 disabled:to-slate-800 text-white font-bold py-2 px-4 rounded-xl text-xs uppercase tracking-wider transition disabled:opacity-40 disabled:cursor-not-allowed shadow-lg" disabled>
+                    Ekipmanları Birleştir 🔨
+                </button>
+            </div>
+
+            <!-- Çanta Envanteri -->
+            <div class="bg-slate-950 rounded-2xl border border-slate-800 p-4 shadow-xl flex flex-col gap-3">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                        🎒 Çanta Envanteri
+                    </h3>
+                    <button onclick="rotateDraggingItem()" class="bg-slate-800 hover:bg-slate-700 active:scale-95 text-white px-3 py-1 rounded-lg text-xs font-semibold border border-slate-700 flex items-center gap-1 transition">
+                        🔄 Döndür <kbd class="bg-slate-900 px-1 rounded text-[10px]">R</kbd>
+                    </button>
+                </div>
+
+                <div class="relative bg-slate-900 border-2 border-slate-800 rounded-xl p-1 overflow-auto max-w-full">
+                    <div id="grid-container" class="inventory-grid relative select-none" style="width: 440px; height: 264px;">
+                        <div id="grid-bg-cells" class="absolute inset-0 pointer-events-none grid grid-cols-10 grid-rows-6"></div>
+                        <div id="inventory-items-layer" class="absolute inset-0 z-10"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mağaza ve Çöp Kutusu -->
+            <div class="grid grid-cols-2 gap-4">
+                <!-- Gezgin Tüccar -->
+                <div id="shop-merchant-box" class="bg-slate-950 rounded-2xl border border-dashed border-amber-600/30 p-4 shadow-xl flex flex-col justify-center items-center text-center relative group overflow-hidden">
+                    <div class="absolute inset-0 bg-amber-600/5 opacity-0 group-hover:opacity-100 pointer-events-none transition duration-300"></div>
+                    <span class="text-3xl mb-1">🧙‍♂️</span>
+                    <h4 class="text-xs font-bold text-amber-500 uppercase tracking-wider mb-1">Gezgin Tüccar</h4>
+                    <p class="text-[10px] text-slate-400 max-w-[160px] leading-relaxed mb-3">Eşyaları buraya sürükleyip satarak altın kazanabilirsiniz.</p>
+                    <button onclick="buyRandomChest()" class="bg-amber-600/20 hover:bg-amber-600 hover:text-white border border-amber-600/50 text-amber-400 text-xs px-3 py-1.5 rounded-lg font-bold transition">
+                        Ganimet Al (50🪙)
+                    </button>
+                </div>
+
+                <!-- Çöp Kutusu -->
+                <div id="trash-bin-box" class="bg-slate-950 rounded-2xl border border-dashed border-rose-950/40 p-4 shadow-xl flex flex-col justify-center items-center text-center relative group overflow-hidden">
+                    <div class="absolute inset-0 bg-rose-600/5 opacity-0 group-hover:opacity-100 pointer-events-none transition duration-300"></div>
+                    <span class="text-3xl mb-1">🗑️</span>
+                    <h4 class="text-xs font-bold text-rose-500 uppercase tracking-wider mb-1">Eşyayı Çöpe At</h4>
+                    <p class="text-[10px] text-slate-400 max-w-[160px] leading-relaxed">İhtiyacınız olmayan değersiz nesneleri buraya bırakıp yok edin.</p>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- Detaylı İpucu Sistemi (Tooltip) -->
+    <div id="item-tooltip" class="fixed hidden bg-slate-950/95 border-2 border-slate-800 text-xs p-3 rounded-xl shadow-2xl z-50 pointer-events-none max-w-xs transition-opacity duration-150">
+        <h4 id="tooltip-title" class="text-sm font-black text-amber-400 mb-1">Demir Kılıç</h4>
+        <span id="tooltip-rarity" class="text-[10px] uppercase tracking-wider font-bold text-slate-400 px-1.5 py-0.5 rounded bg-slate-900 inline-block mb-2">Sıradan</span>
+        <div id="tooltip-stats" class="text-slate-300 flex flex-col gap-1 border-t border-slate-800 pt-2">
+            <div>⚔️ Hasar: +15</div>
+        </div>
+        <div class="text-[10px] text-slate-500 mt-2 italic" id="tooltip-dimensions">Boyut: 1x3</div>
+    </div>
+
+    <!-- Sağ Tık Hızlı Etkileşim Menüsü -->
+    <div id="custom-context-menu" class="hidden absolute bg-slate-950/95 border border-slate-800 text-xs rounded-xl shadow-2xl p-1.5 z-[100] min-w-[130px] backdrop-blur">
+        <button id="menu-btn-use" class="w-full text-left px-3 py-2 hover:bg-slate-900 rounded-lg transition text-emerald-400 font-bold flex items-center gap-2">
+            <span>🛡️</span> Kuşan / Kullan
+        </button>
+        <button id="menu-btn-forge" class="w-full text-left px-3 py-2 hover:bg-slate-900 rounded-lg transition text-amber-500 font-bold flex items-center gap-2">
+            <span>🔨</span> Ocağa Koy (Merge)
+        </button>
+        <button id="menu-btn-sell" class="w-full text-left px-3 py-2 hover:bg-slate-900 rounded-lg transition text-yellow-400 font-bold flex items-center gap-2">
+            <span>🪙</span> Tüccara Sat
+        </button>
+    </div>
+
+    <script>
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playSound(type) {
+            try {
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                const now = audioCtx.currentTime;
+
+                if (type === 'click') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(600, now);
+                    osc.frequency.exponentialRampToValueAtTime(150, now + 0.1);
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                    osc.start(now);
+                    osc.stop(now + 0.1);
+                } else if (type === 'hit') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(180, now);
+                    osc.frequency.exponentialRampToValueAtTime(40, now + 0.15);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                    osc.start(now);
+                    osc.stop(now + 0.15);
+                } else if (type === 'shoot') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(400, now);
+                    osc.frequency.exponentialRampToValueAtTime(800, now + 0.12);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+                    osc.start(now);
+                    osc.stop(now + 0.12);
+                } else if (type === 'magic') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(250, now);
+                    osc.frequency.exponentialRampToValueAtTime(1200, now + 0.25);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+                    osc.start(now);
+                    osc.stop(now + 0.25);
+                } else if (type === 'damage') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(90, now);
+                    osc.frequency.exponentialRampToValueAtTime(20, now + 0.3);
+                    gain.gain.setValueAtTime(0.25, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                } else if (type === 'jump') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(150, now);
+                    osc.frequency.exponentialRampToValueAtTime(450, now + 0.12);
+                    gain.gain.setValueAtTime(0.12, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+                    osc.start(now);
+                    osc.stop(now + 0.12);
+                } else if (type === 'loot') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(300, now);
+                    osc.frequency.setValueAtTime(450, now + 0.08);
+                    osc.frequency.setValueAtTime(600, now + 0.16);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                } else if (type === 'gold') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(950, now);
+                    osc.frequency.exponentialRampToValueAtTime(1300, now + 0.2);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                    osc.start(now);
+                    osc.stop(now + 0.2);
+                } else if (type === 'potion') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(400, now);
+                    osc.frequency.exponentialRampToValueAtTime(800, now + 0.4);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                    osc.start(now);
+                    osc.stop(now + 0.4);
+                } else if (type === 'forge') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(120, now);
+                    osc.frequency.exponentialRampToValueAtTime(400, now + 0.1);
+                    osc.frequency.exponentialRampToValueAtTime(50, now + 0.4);
+                    gain.gain.setValueAtTime(0.35, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                    osc.start(now);
+                    osc.stop(now + 0.4);
+                } else if (type === 'levelUp') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(260, now);
+                    osc.frequency.setValueAtTime(390, now + 0.15);
+                    osc.frequency.setValueAtTime(520, now + 0.3);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.45);
+                    osc.start(now);
+                    osc.stop(now + 0.45);
+                }
+            } catch (e) {}
+        }
+    </script>
+
+    <script>
+        const GRID_COLS = 10;
+        const GRID_ROWS = 6;
+        const CELL_SIZE = 44;
+
+        let inventoryGrid = Array(GRID_ROWS).fill(null).map(() => Array(GRID_COLS).fill(null));
+        let itemsDb = {};
+        
+        let equippedItems = {
+            helmet: null,
+            weapon: null,
+            armor: null,
+            shield: null,
+            ring: null
+        };
+
+        let forgeSlots = {
+            slot1: null,
+            slot2: null
+        };
+
+        const ITEM_TEMPLATES = [
+            { name: "Kısa Kılıç", type: "weapon", subType: "sword", width: 1, height: 3, icon: "🗡️", color: "from-blue-500/10 to-blue-500/20", baseStat: { atk: 15 } },
+            { name: "Dev Balta", type: "weapon", subType: "heavy", width: 2, height: 3, icon: "🪓", color: "from-red-600/10 to-red-600/20", baseStat: { atk: 35 } },
+            { name: "Zindan Yayı", type: "weapon", subType: "bow", width: 2, height: 3, icon: "🏹", color: "from-emerald-500/10 to-emerald-500/20", baseStat: { atk: 12 } },
+            { name: "Sihirbaz Asası", type: "weapon", subType: "magic", width: 1, height: 3, icon: "🔮", color: "from-purple-500/10 to-purple-500/20", baseStat: { atk: 20 } },
+            { name: "Hızlı Hançer", type: "weapon", subType: "dagger", width: 1, height: 2, icon: "🔪", color: "from-teal-500/10 to-teal-500/20", baseStat: { atk: 8 } },
+            
+            { name: "Demir Kalkan", type: "shield", width: 2, height: 2, icon: "🛡️", color: "from-slate-500/10 to-slate-500/20", baseStat: { def: 12 } },
+            { name: "Şövalye Zırhı", type: "armor", width: 2, height: 3, icon: "👕", color: "from-amber-500/10 to-amber-500/20", baseStat: { def: 20 } },
+            { name: "Savaşçı Miğferi", type: "helmet", width: 2, height: 2, icon: "🪖", color: "from-indigo-500/10 to-indigo-500/20", baseStat: { def: 10, hp: 15 } },
+            { name: "Safir Yüzük", type: "ring", width: 1, height: 1, icon: "💍", color: "from-violet-500/10 to-violet-500/20", baseStat: { hp: 25 } },
+            { name: "Şifa İksiri", type: "potion", width: 1, height: 1, icon: "🧪", color: "from-rose-500/20 to-rose-500/40", baseStat: { heal: 45 } }
+        ];
+
+        const RARITIES = [
+            { name: "Sıradan", color: "text-gray-400", border: "border-slate-700", chance: 0.55, multiplier: 1.0 },
+            { name: "Nadir", color: "text-blue-400", border: "border-blue-600", chance: 0.28, multiplier: 1.4 },
+            { name: "Epik", color: "text-purple-400", border: "border-purple-600", chance: 0.13, multiplier: 1.8 },
+            { name: "Efsanevi", color: "text-amber-400", border: "border-amber-500 animate-pulse", chance: 0.04, multiplier: 2.6 }
+        ];
+
+        function getRandomRarity() {
+            const rand = Math.random();
+            let cumulative = 0;
+            for (let rarity of RARITIES) {
+                cumulative += rarity.chance;
+                if (rand <= cumulative) return rarity;
+            }
+            return RARITIES[0];
+        }
+
+        function createRandomItem() {
+            const template = ITEM_TEMPLATES[Math.floor(Math.random() * ITEM_TEMPLATES.length)];
+            const rarity = getRandomRarity();
+            const id = "item_" + Math.random().toString(36).substr(2, 9);
+
+            const stats = {};
+            for (let statKey in template.baseStat) {
+                stats[statKey] = Math.round(template.baseStat[statKey] * rarity.multiplier);
+            }
+
+            const value = Math.round((template.width * template.height * 10) * rarity.multiplier);
+
+            return {
+                id,
+                name: `${rarity.name} ${template.name}`,
+                type: template.type,
+                subType: template.subType || null,
+                width: template.width,
+                height: template.height,
+                icon: template.icon,
+                color: template.color,
+                rarity: rarity,
+                stats,
+                value,
+                rotated: false,
+                upgradeLevel: 0
+            };
+        }
+    </script>
+
+    <script>
+        let draggingElement = null;
+        let draggingItem = null;
+        let dragOffset = { x: 0, y: 0 };
+        let dragStartLoc = { type: 'grid', col: 0, row: 0, slot: null };
+        
+        let dragStartClientX = 0;
+        let dragStartClientY = 0;
+
+        let contextMenuItem = null; 
+
+        function initDragEngine() {
+            document.addEventListener('pointermove', onPointerMove);
+            document.addEventListener('pointerup', onPointerUp);
+
+            const gridCellsBg = document.getElementById('grid-bg-cells');
+            gridCellsBg.innerHTML = '';
+            for (let r = 0; r < GRID_ROWS; r++) {
+                for (let c = 0; c < GRID_COLS; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'border-r border-b border-slate-800/20 w-full h-full';
+                    cell.dataset.row = r;
+                    cell.dataset.col = c;
+                    gridCellsBg.appendChild(cell);
+                }
+            }
+
+            document.querySelectorAll('.equip-slot').forEach(slot => {
+                slot.addEventListener('pointerdown', (e) => {
+                    const slotType = slot.dataset.slotType;
+                    const item = equippedItems[slotType];
+                    if (item && e.button !== 2) { 
+                        liftItem(item, e, 'slot', null, null, slotType);
+                    }
+                });
+
+                slot.addEventListener('dblclick', () => {
+                    const slotType = slot.dataset.slotType;
+                    const item = equippedItems[slotType];
+                    if (item) {
+                        unequipToInventory(slotType);
+                    }
+                });
+            });
+
+            document.querySelectorAll('.forge-slot').forEach(slot => {
+                slot.addEventListener('pointerdown', (e) => {
+                    const slotId = slot.dataset.forgeSlot;
+                    const item = forgeSlots[slotId];
+                    if (item && e.button !== 2) {
+                        liftItem(item, e, 'forge', null, null, slotId);
+                    }
+                });
+            });
+
+            // Sağ Tık Menü Buton İşlevleri
+            document.getElementById('menu-btn-use').addEventListener('click', () => {
+                if (contextMenuItem) {
+                    useOrEquipItem(contextMenuItem);
+                    hideContextMenu();
+                }
+            });
+
+            document.getElementById('menu-btn-forge').addEventListener('click', () => {
+                if (contextMenuItem) {
+                    placeInForge(contextMenuItem);
+                    hideContextMenu();
+                }
+            });
+
+            document.getElementById('menu-btn-sell').addEventListener('click', () => {
+                if (contextMenuItem) {
+                    sellItem(contextMenuItem);
+                    hideContextMenu();
+                }
+            });
+
+            document.addEventListener('click', (e) => {
+                const menu = document.getElementById('custom-context-menu');
+                if (!menu.contains(e.target)) {
+                    hideContextMenu();
+                }
+            });
+        }
+
+        function showContextMenu(item, e) {
+            const menu = document.getElementById('custom-context-menu');
+            menu.style.left = `${e.pageX}px`;
+            menu.style.top = `${e.pageY}px`;
+            menu.classList.remove('hidden');
+            contextMenuItem = item;
+
+            const forgeBtn = document.getElementById('menu-btn-forge');
+            if (item.type === 'potion') {
+                forgeBtn.classList.add('opacity-40', 'pointer-events-none');
+            } else {
+                forgeBtn.classList.remove('opacity-40', 'pointer-events-none');
+            }
+        }
+
+        function hideContextMenu() {
+            document.getElementById('custom-context-menu').classList.add('hidden');
+        }
+
+        function placeInForge(item) {
+            if (item.type === 'potion') {
+                showToast("🧪 İksirler birleştirilemez!");
+                return;
+            }
+
+            let targetSlot = null;
+            if (!forgeSlots.slot1) {
+                targetSlot = 'slot1';
+            } else if (!forgeSlots.slot2) {
+                targetSlot = 'slot2';
+            } else {
+                const oldItem = forgeSlots.slot1;
+                if (autoAddItemToGrid(oldItem)) {
+                    forgeSlots.slot1 = null;
+                    unequipForgeItem('slot1');
+                    targetSlot = 'slot1';
+                } else {
+                    showToast("🎒 Çanta dolu, ocağı boşaltamıyoruz!");
+                    return;
+                }
+            }
+
+            if (targetSlot) {
+                const col = item.gridLoc ? item.gridLoc.col : null;
+                const row = item.gridLoc ? item.gridLoc.row : null;
+                if (col !== null && row !== null) {
+                    clearGridCells(item, col, row);
+                }
+                delete itemsDb[item.id];
+                equipForgeItem(item, targetSlot);
+                renderInventory();
+                hideTooltip();
+                showToast(`🔨 ${item.name} Demirci Ocağı'na yerleştirildi.`);
+            }
+        }
+
+        function unequipToInventory(slotType) {
+            const item = equippedItems[slotType];
+            if (!item) return;
+            if (autoAddItemToGrid(item)) {
+                equippedItems[slotType] = null;
+                unequipItem(slotType); 
+                renderInventory();
+                showToast(`🎒 ${item.name} çantaya geri kaldırıldı.`);
+                playSound('click');
+            } else {
+                showToast("🎒 Çantanız dolu, ekipmanı sökemezsiniz!");
+            }
+        }
+
+        function renderInventory() {
+            const layer = document.getElementById('inventory-items-layer');
+            layer.innerHTML = '';
+
+            for (let itemId in itemsDb) {
+                const item = itemsDb[itemId];
+                if (item.gridLoc) {
+                    const el = createItemElement(item);
+                    layer.appendChild(el);
+                }
+            }
+        }
+
+        function createItemElement(item) {
+            const el = document.createElement('div');
+            el.id = item.id;
+            el.className = `absolute rounded-lg border-2 bg-gradient-to-b ${item.color} ${item.rarity.border} flex flex-col items-center justify-center cursor-grab active:cursor-grabbing transition-transform hover:scale-[1.02] shadow-lg z-20`;
+            
+            const w = item.rotated ? item.height : item.width;
+            const h = item.rotated ? item.width : item.height;
+
+            el.style.width = `${w * CELL_SIZE - 4}px`;
+            el.style.height = `${h * CELL_SIZE - 4}px`;
+            el.style.left = `${item.gridLoc.col * CELL_SIZE + 2}px`;
+            el.style.top = `${item.gridLoc.row * CELL_SIZE + 2}px`;
+
+            let nameDisplay = item.icon;
+            el.innerHTML = `
+                <span class="text-2xl select-none pointer-events-none">${nameDisplay}</span>
+                ${item.upgradeLevel > 0 ? `<span class="absolute top-1 right-1.5 text-[9px] font-black text-amber-400 bg-black/70 px-1 rounded-md border border-amber-500/30 pointer-events-none">+${item.upgradeLevel}</span>` : ''}
+                ${item.rotated ? '<span class="absolute bottom-0.5 right-1 text-[8px] opacity-60 pointer-events-none">🔄</span>' : ''}
+            `;
+
+            el.addEventListener('pointerdown', (e) => {
+                if (e.button === 2) return; 
+                e.preventDefault();
+                liftItem(item, e, 'grid', item.gridLoc.col, item.gridLoc.row, null);
+            });
+
+            el.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                showContextMenu(item, e);
+            });
+
+            el.addEventListener('dblclick', () => {
+                useOrEquipItem(item);
+            });
+
+            el.addEventListener('pointerenter', (e) => showTooltip(item, e));
+            el.addEventListener('pointerleave', hideTooltip);
+            el.addEventListener('pointermove', updateTooltipPosition);
+
+            return el;
+        }
+
+        function liftItem(item, e, fromType, col, row, slotType) {
+            playSound('click');
+            draggingItem = item;
+            dragStartLoc = { type: fromType, col, row, slot: slotType };
+            
+            dragStartClientX = e.clientX;
+            dragStartClientY = e.clientY;
+
+            let dragEl = document.getElementById(item.id);
+            
+            if (fromType === 'slot') {
+                unequipItem(slotType);
+                itemsDb[item.id] = item;
+                item.gridLoc = null;
+                renderInventory();
+                dragEl = createItemElement(item);
+                document.getElementById('inventory-items-layer').appendChild(dragEl);
+            } else if (fromType === 'forge') {
+                unequipForgeItem(slotType);
+                itemsDb[item.id] = item;
+                item.gridLoc = null;
+                renderInventory();
+                dragEl = createItemElement(item);
+                document.getElementById('inventory-items-layer').appendChild(dragEl);
+            }
+
+            draggingElement = dragEl;
+            if (draggingElement) {
+                draggingElement.classList.add('opacity-80', 'z-50');
+                draggingElement.classList.remove('transition-all');
+
+                const rect = draggingElement.getBoundingClientRect();
+                dragOffset.x = e.clientX - rect.left;
+                dragOffset.y = e.clientY - rect.top;
+
+                if (fromType === 'grid') {
+                    clearGridCells(item, col, row);
+                }
+            }
+        }
+
+        function onPointerMove(e) {
+            if (!draggingElement || !draggingItem) return;
+
+            const gridContainer = document.getElementById('grid-container');
+            const gridRect = gridContainer.getBoundingClientRect();
+
+            const x = e.clientX - gridRect.left - dragOffset.x;
+            const y = e.clientY - gridRect.top - dragOffset.y;
+
+            draggingElement.style.left = `${x}px`;
+            draggingElement.style.top = `${y}px`;
+
+            const targetCol = Math.round(x / CELL_SIZE);
+            const targetRow = Math.round(y / CELL_SIZE);
+
+            if (isValidPlacement(draggingItem, targetCol, targetRow)) {
+                draggingElement.classList.add('border-green-400');
+                draggingElement.classList.remove('border-red-400');
+            } else {
+                draggingElement.classList.add('border-red-400');
+                draggingElement.classList.remove('border-green-400');
+            }
+        }
+
+        function onPointerUp(e) {
+            if (!draggingElement || !draggingItem) return;
+
+            const deltaX = Math.abs(e.clientX - dragStartClientX);
+            const deltaY = Math.abs(e.clientY - dragStartClientY);
+
+            if (deltaX < 6 && deltaY < 6 && dragStartLoc.type === 'grid') {
+                useOrEquipItem(draggingItem);
+                endDrag();
+                return;
+            }
+
+            const gridContainer = document.getElementById('grid-container');
+            const gridRect = gridContainer.getBoundingClientRect();
+            const dropX = e.clientX - gridRect.left - dragOffset.x;
+            const dropY = e.clientY - gridRect.top - dragOffset.y;
+
+            const targetCol = Math.round(dropX / CELL_SIZE);
+            const targetRow = Math.round(dropY / CELL_SIZE);
+
+            const shopBox = document.getElementById('shop-merchant-box');
+            const shopRect = shopBox.getBoundingClientRect();
+            if (e.clientX >= shopRect.left && e.clientX <= shopRect.right &&
+                e.clientY >= shopRect.top && e.clientY <= shopRect.bottom) {
+                sellItem(draggingItem);
+                endDrag();
+                return;
+            }
+
+            const trashBox = document.getElementById('trash-bin-box');
+            const trashRect = trashBox.getBoundingClientRect();
+            if (e.clientX >= trashRect.left && e.clientX <= trashRect.right &&
+                e.clientY >= trashRect.top && e.clientY <= trashRect.bottom) {
+                deleteItem(draggingItem);
+                showToast("🗑️ Eşya imha edildi!");
+                playSound('damage');
+                endDrag();
+                return;
+            }
+
+            let equipped = false;
+            const equipSlots = document.querySelectorAll('.equip-slot');
+            for (let slot of equipSlots) {
+                const slotRect = slot.getBoundingClientRect();
+                if (e.clientX >= slotRect.left && e.clientX <= slotRect.right &&
+                    e.clientY >= slotRect.top && e.clientY <= slotRect.bottom) {
+                    
+                    const slotType = slot.dataset.slotType;
+                    if (canEquipInSlot(draggingItem, slotType)) {
+                        equipped = equipItem(draggingItem, slotType);
+                        break;
+                    }
+                }
+            }
+
+            if (equipped) {
+                endDrag();
+                return;
+            }
+
+            let forged = false;
+            const forgeSlotsEl = document.querySelectorAll('.forge-slot');
+            for (let slot of forgeSlotsEl) {
+                const slotRect = slot.getBoundingClientRect();
+                if (e.clientX >= slotRect.left && e.clientX <= slotRect.right &&
+                    e.clientY >= slotRect.top && e.clientY <= slotRect.bottom) {
+                    
+                    const slotId = slot.dataset.forgeSlot;
+                    if (draggingItem.type !== 'potion') { 
+                        forged = equipForgeItem(draggingItem, slotId);
+                        break;
+                    } else {
+                        showToast("⚠️ Sadece ekipmanları birleştirebilirsiniz!");
+                    }
+                }
+            }
+
+            if (forged) {
+                endDrag();
+                return;
+            }
+
+            if (isValidPlacement(draggingItem, targetCol, targetRow)) {
+                placeItemInGrid(draggingItem, targetCol, targetRow);
+                playSound('click');
+            } else {
+                if (dragStartLoc.type === 'grid') {
+                    placeItemInGrid(draggingItem, dragStartLoc.col, dragStartLoc.row);
+                } else if (dragStartLoc.type === 'slot') {
+                    equipItem(draggingItem, dragStartLoc.slot);
+                } else if (dragStartLoc.type === 'forge') {
+                    equipForgeItem(draggingItem, dragStartLoc.slot);
+                }
+            }
+
+            endDrag();
+        }
+
+        function useOrEquipItem(item) {
+            if (item.type === 'potion') {
+                usePotion(item);
+            } else {
+                const slotType = item.type;
+                if (equippedItems[slotType] !== undefined) {
+                    const col = item.gridLoc ? item.gridLoc.col : null;
+                    const row = item.gridLoc ? item.gridLoc.row : null;
+                    if (col !== null && row !== null) {
+                        clearGridCells(item, col, row);
+                    }
+                    delete itemsDb[item.id]; 
+
+                    const success = equipItem(item, slotType);
+                    if (!success && col !== null && row !== null) {
+                        itemsDb[item.id] = item;
+                        placeItemInGrid(item, col, row);
+                    }
+                    hideTooltip();
+                    renderInventory();
+                }
+            }
+        }
+
+        function endDrag() {
+            if (draggingElement) {
+                draggingElement.classList.remove('opacity-80', 'z-50', 'border-green-400', 'border-red-400');
+            }
+            draggingElement = null;
+            draggingItem = null;
+            renderInventory();
+            updatePlayerStats();
+            updateForgeUI();
+            
+            document.getElementById('dungeonCanvas').focus();
+        }
+
+        function rotateDraggingItem() {
+            if (!draggingItem || !draggingElement) return;
+            
+            draggingItem.rotated = !draggingItem.rotated;
+            
+            const w = draggingItem.rotated ? draggingItem.height : draggingItem.width;
+            const h = draggingItem.rotated ? draggingItem.width : draggingItem.height;
+            draggingElement.style.width = `${w * CELL_SIZE - 4}px`;
+            draggingElement.style.height = `${h * CELL_SIZE - 4}px`;
+
+            playSound('click');
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyR') {
+                rotateDraggingItem();
+            }
+        });
+    </script>
+
+    <script>
+        function isValidPlacement(item, col, row) {
+            const w = item.rotated ? item.height : item.width;
+            const h = item.rotated ? item.width : item.height;
+
+            if (col < 0 || row < 0 || col + w > GRID_COLS || row + h > GRID_ROWS) {
+                return false;
+            }
+
+            for (let r = row; r < row + h; r++) {
+                for (let c = col; c < col + w; c++) {
+                    if (inventoryGrid[r][c] !== null && inventoryGrid[r][c] !== item.id) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        function placeItemInGrid(item, col, row) {
+            const w = item.rotated ? item.height : item.width;
+            const h = item.rotated ? item.width : item.height;
+
+            item.gridLoc = { col, row };
+
+            for (let r = row; r < row + h; r++) {
+                for (let c = col; c < col + w; c++) {
+                    inventoryGrid[r][c] = item.id;
+                }
+            }
+        }
+
+        function clearGridCells(item, col, row) {
+            const w = item.rotated ? item.height : item.width;
+            const h = item.rotated ? item.width : item.height;
+
+            for (let r = row; r < row + h; r++) {
+                for (let c = col; c < col + w; c++) {
+                    if (inventoryGrid[r][c] === item.id) {
+                        inventoryGrid[r][c] = null;
+                    }
+                }
+            }
+        }
+
+        function autoAddItemToGrid(item) {
+            for (let r = 0; r <= GRID_ROWS - item.height; r++) {
+                for (let c = 0; c <= GRID_COLS - item.width; c++) {
+                    if (isValidPlacement(item, c, r)) {
+                        itemsDb[item.id] = item;
+                        placeItemInGrid(item, c, r);
+                        renderInventory();
+                        return true;
+                    }
+                }
+            }
+            item.rotated = true;
+            for (let r = 0; r <= GRID_ROWS - item.width; r++) {
+                for (let c = 0; c <= GRID_COLS - item.height; c++) {
+                    if (isValidPlacement(item, c, r)) {
+                        itemsDb[item.id] = item;
+                        placeItemInGrid(item, c, r);
+                        renderInventory();
+                        return true;
+                    }
+                }
+            }
+            item.rotated = false;
+            return false;
+        }
+
+        function canEquipInSlot(item, slotType) {
+            if (slotType === 'weapon' && item.type === 'weapon') return true;
+            if (slotType === 'shield' && item.type === 'shield') return true;
+            if (slotType === 'armor' && item.type === 'armor') return true;
+            if (slotType === 'helmet' && item.type === 'helmet') return true;
+            if (slotType === 'ring' && item.type === 'ring') return true;
+            return false;
+        }
+
+        function equipItem(item, slotType) {
+            if (equippedItems[slotType]) {
+                const prevItem = equippedItems[slotType];
+                if (!autoAddItemToGrid(prevItem)) {
+                    showToast("🎒 Çanta dolu, önceki eşya çıkartılamıyor!");
+                    return false;
+                }
+            }
+
+            equippedItems[slotType] = item;
+            item.gridLoc = null;
+            delete itemsDb[item.id];
+
+            const slotEl = document.getElementById(`slot-${slotType}`);
+            let levelLabel = item.upgradeLevel > 0 ? ` +${item.upgradeLevel}` : '';
+            slotEl.innerHTML = `
+                <div class="absolute inset-0.5 rounded-lg border bg-gradient-to-b ${item.color} ${item.rarity.border} flex flex-col items-center justify-center pointer-events-none">
+                    <span class="text-2xl">${item.icon}</span>
+                    <span class="text-[8px] font-extrabold text-amber-400 mt-1 uppercase truncate max-w-full">${item.rarity.name}${levelLabel}</span>
+                </div>
+            `;
+            
+            showToast(`🛡️ ${item.name}${levelLabel} kuşandı!`);
+            playSound('loot');
+            updatePlayerStats();
+            return true;
+        }
+
+        function unequipItem(slotType) {
+            const item = equippedItems[slotType];
+            if (!item) return;
+
+            equippedItems[slotType] = null;
+            
+            const slotEl = document.getElementById(`slot-${slotType}`);
+            const defaultIcons = { helmet: "🪖", weapon: "🗡️", armor: "👕", shield: "🛡️", ring: "💍" };
+            const labels = { helmet: "MİĞFER", weapon: "SİLAH", armor: "ZIRH", shield: "KALKAN", ring: "YÜZÜK" };
+            
+            slotEl.innerHTML = `
+                <span class="text-[9px] text-slate-600 pointer-events-none">${labels[slotType]}</span>
+                <span class="text-lg opacity-30 pointer-events-none">${defaultIcons[slotType]}</span>
+            `;
+
+            updatePlayerStats();
+        }
+
+        function equipForgeItem(item, slotId) {
+            if (forgeSlots[slotId]) {
+                const prevItem = forgeSlots[slotId];
+                if (!autoAddItemToGrid(prevItem)) {
+                    showToast("🎒 Çanta dolu, önceki silah çıkartılamıyor!");
+                    return false;
+                }
+            }
+
+            forgeSlots[slotId] = item;
+            item.gridLoc = null;
+            delete itemsDb[item.id];
+
+            const slotEl = document.getElementById(`forge-${slotId}`);
+            let levelLabel = item.upgradeLevel > 0 ? ` +${item.upgradeLevel}` : '';
+            slotEl.innerHTML = `
+                <div class="absolute inset-0.5 rounded-lg border bg-gradient-to-b ${item.color} ${item.rarity.border} flex flex-col items-center justify-center pointer-events-none">
+                    <span class="text-2xl">${item.icon}</span>
+                    <span class="text-[8px] font-extrabold text-amber-400 mt-0.5 uppercase truncate max-w-full">${item.rarity.name}${levelLabel}</span>
+                </div>
+            `;
+
+            playSound('click');
+            updateForgeUI();
+            return true;
+        }
+
+        function unequipForgeItem(slotId) {
+            const item = forgeSlots[slotId];
+            if (!item) return;
+
+            forgeSlots[slotId] = null;
+            
+            const slotEl = document.getElementById(`forge-${slotId}`);
+            const labels = { slot1: "EŞYA A", slot2: "EŞYA B" };
+            
+            slotEl.innerHTML = `
+                <span class="text-[9px] text-slate-600 pointer-events-none select-none">${labels[slotId]}</span>
+                <span class="text-lg opacity-20 pointer-events-none">🛡️</span>
+            `;
+
+            updateForgeUI();
+        }
+
+        function updateForgeUI() {
+            const itemA = forgeSlots.slot1;
+            const itemB = forgeSlots.slot2;
+            const btn = document.getElementById('btn-merge-weapons');
+            const previewSlot = document.getElementById('forge-preview-slot');
+
+            if (itemA && itemB) {
+                const sameType = itemA.type === itemB.type;
+                const sameSubType = itemA.subType === itemB.subType;
+                const sameRarity = itemA.rarity.name === itemB.rarity.name;
+
+                if (sameType && sameSubType && sameRarity) {
+                    btn.removeAttribute('disabled');
+                    
+                    let nextRarityIndex = RARITIES.findIndex(r => r.name === itemA.rarity.name) + 1;
+                    let nextRarity = nextRarityIndex < RARITIES.length ? RARITIES[nextRarityIndex] : RARITIES[RARITIES.length - 1];
+                    let nextLevel = 0;
+                    
+                    if (itemA.rarity.name === "Efsanevi") {
+                        nextLevel = (itemA.upgradeLevel || 0) + (itemB.upgradeLevel || 0) + 1;
+                    }
+
+                    let levelLabel = nextLevel > 0 ? ` +${nextLevel}` : '';
+                    previewSlot.innerHTML = `
+                        <div class="absolute inset-0.5 rounded-lg border-2 bg-gradient-to-b ${itemA.color} ${nextRarity.border} flex flex-col items-center justify-center pointer-events-none">
+                            <span class="text-2xl">${itemA.icon}</span>
+                            <span class="text-[7px] font-black text-amber-400 mt-0.5 uppercase truncate max-w-full">${nextRarity.name}${levelLabel}</span>
+                        </div>
+                    `;
+                    previewSlot.classList.remove('opacity-50');
+                } else {
+                    btn.setAttribute('disabled', 'true');
+                    resetPreviewSlot();
+                }
+            } else {
+                btn.setAttribute('disabled', 'true');
+                resetPreviewSlot();
+            }
+        }
+
+        function resetPreviewSlot() {
+            const previewSlot = document.getElementById('forge-preview-slot');
+            previewSlot.innerHTML = `
+                <span class="text-[9px] text-slate-600 select-none">SONUÇ</span>
+                <span class="text-lg opacity-20">✨</span>
+            `;
+            previewSlot.classList.add('opacity-50');
+        }
+
+        function usePotion(item) {
+            playSound('potion');
+            const healAmt = item.stats.heal || 40;
+            const currentMaxHp = playerMaxHp + playerHpBonus + (vitalityPoints * 15);
+            playerHp = Math.min(currentMaxHp, playerHp + healAmt);
+            
+            if (item.gridLoc) {
+                const col = item.gridLoc.col;
+                const row = item.gridLoc.row;
+                clearGridCells(item, col, row);
+            }
+            delete itemsDb[item.id];
+
+            showToast(`🧪 İksir kullanıldı! +${healAmt} Can.`);
+            updatePlayerStats();
+            renderInventory();
+        }
+
+        function mergeEquipments() {
+            const itemA = forgeSlots.slot1;
+            const itemB = forgeSlots.slot2;
+
+            if (!itemA || !itemB) return;
+
+            let nextRarityIndex = RARITIES.findIndex(r => r.name === itemA.rarity.name) + 1;
+            let targetRarity = nextRarityIndex < RARITIES.length ? RARITIES[nextRarityIndex] : RARITIES[RARITIES.length - 1];
+            
+            let isEfsaneviMerge = itemA.rarity.name === "Efsanevi";
+            let newUpgradeLevel = isEfsaneviMerge ? (itemA.upgradeLevel || 0) + (itemB.upgradeLevel || 0) + 1 : 0;
+
+            let cleanBaseName = itemA.name.replace(/^(Sıradan|Nadir|Epik|Efsanevi)\s+/, '').replace(/\s+\+\d+$/, '');
+            let levelSuffix = newUpgradeLevel > 0 ? ` +${newUpgradeLevel}` : '';
+            let newName = `${targetRarity.name} ${cleanBaseName}${levelSuffix}`;
+
+            const upgradedStats = {};
+            for (let statKey in itemA.stats) {
+                let baseStatValue = itemA.stats[statKey] / (itemA.rarity.multiplier * (1 + (itemA.upgradeLevel || 0) * 0.25));
+                upgradedStats[statKey] = Math.round(baseStatValue * targetRarity.multiplier * (1 + newUpgradeLevel * 0.25));
+            }
+
+            let mergedItem = {
+                id: "item_merge_" + Math.random().toString(36).substr(2, 9),
+                name: newName,
+                type: itemA.type,
+                subType: itemA.subType,
+                width: itemA.width,
+                height: itemA.height,
+                icon: itemA.icon,
+                color: itemA.color,
+                rarity: targetRarity,
+                stats: upgradedStats,
+                value: Math.round(itemA.value * 2.2),
+                rotated: false,
+                upgradeLevel: newUpgradeLevel
+            };
+
+            playSound('forge');
+            shakeScreen(20, 15);
+            
+            for (let i = 0; i < 25; i++) {
+                spawnParticle(
+                    playerX + (Math.random() - 0.5) * 60, 
+                    playerY + (Math.random() - 0.5) * 60, 
+                    '#f59e0b', 
+                    Math.random() * 4 + 2, 
+                    (Math.random() - 0.5) * 10, 
+                    (Math.random() - 0.5) * 10 - 2
+                );
+            }
+            spawnDamageText(playerX + playerWidth/2, playerY - 30, "🔨 BİRLEŞTİRME BAŞARILI!", '#f59e0b', true);
+
+            forgeSlots.slot1 = null;
+            forgeSlots.slot2 = null;
+
+            document.getElementById('forge-slot1').innerHTML = `
+                <span class="text-[9px] text-slate-600 pointer-events-none select-none">EŞYA A</span>
+                <span class="text-lg opacity-20 pointer-events-none">🛡️</span>
+            `;
+            document.getElementById('forge-slot2').innerHTML = `
+                <span class="text-[9px] text-slate-600 pointer-events-none select-none">EŞYA B</span>
+                <span class="text-lg opacity-20 pointer-events-none">🛡️</span>
+            `;
+
+            forgeSlots.slot1 = mergedItem;
+            
+            let levelLabel = mergedItem.upgradeLevel > 0 ? ` +${mergedItem.upgradeLevel}` : '';
+            document.getElementById('forge-slot1').innerHTML = `
+                <div class="absolute inset-0.5 rounded-lg border bg-gradient-to-b ${mergedItem.color} ${mergedItem.rarity.border} flex flex-col items-center justify-center pointer-events-none">
+                    <span class="text-2xl">${mergedItem.icon}</span>
+                    <span class="text-[8px] font-extrabold text-amber-400 mt-0.5 uppercase truncate max-w-full">${mergedItem.rarity.name}${levelLabel}</span>
+                </div>
+            `;
+
+            showToast(`🔥 Başarıyla Üretildi: ${newName}!`);
+            updateForgeUI();
+            updatePlayerStats();
+            renderInventory();
+        }
+
+        function sellItem(item) {
+            playerGold += item.value;
+            
+            if (item.gridLoc) {
+                const col = item.gridLoc.col;
+                const row = item.gridLoc.row;
+                clearGridCells(item, col, row);
+            }
+            delete itemsDb[item.id];
+            playSound('gold');
+            showToast(`🪙 ${item.name} satıldı! +${item.value} Altın`);
+            updateGoldUI();
+            renderInventory();
+        }
+
+        function deleteItem(item) {
+            delete itemsDb[item.id];
+        }
+
+        function buyRandomChest() {
+            if (playerGold < 50) {
+                showToast("❌ Yetersiz altın! En az 50 Altın gerekli.");
+                return;
+            }
+
+            const item = createRandomItem();
+            if (autoAddItemToGrid(item)) {
+                playerGold -= 50;
+                updateGoldUI();
+                playSound('loot');
+                showToast(`🎁 Alındı: ${item.name}`);
+            } else {
+                showToast("🎒 Çantan dolu! Önce yer açmalısın.");
+            }
+        }
+    </script>
+
+    <script>
+        const tooltip = document.getElementById('item-tooltip');
+        const tooltipTitle = document.getElementById('tooltip-title');
+        const tooltipRarity = document.getElementById('tooltip-rarity');
+        const tooltipStats = document.getElementById('tooltip-stats');
+        const tooltipDimensions = document.getElementById('tooltip-dimensions');
+
+        function showTooltip(item, e) {
+            let levelLabel = item.upgradeLevel > 0 ? ` +${item.upgradeLevel}` : '';
+            tooltipTitle.textContent = item.name;
+            tooltipRarity.textContent = item.rarity.name + levelLabel;
+            tooltipRarity.className = "text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-slate-900 inline-block mb-2 " + item.rarity.color;
+
+            let statsHtml = '';
+            if (item.stats.atk) statsHtml += `<div>⚔️ Hasar: +${item.stats.atk}</div>`;
+            if (item.stats.def) statsHtml += `<div>🛡️ Savunma: +${item.stats.def}</div>`;
+            if (item.stats.speed) statsHtml += `<div>🏃 Hız: +${item.stats.speed}</div>`;
+            if (item.stats.hp) statsHtml += `<div>❤️ Maks Can: +${item.stats.hp}</div>`;
+            if (item.stats.heal) statsHtml += `<div>🧪 İyileştirme: ${item.stats.heal} Can</div>`;
+
+            statsHtml += `<div class="text-yellow-500 font-bold mt-1">🪙 Değer: ${item.value} Altın</div>`;
+            tooltipStats.innerHTML = statsHtml;
+
+            tooltipDimensions.textContent = `Boyut: ${item.width}x${item.height}`;
+
+            tooltip.classList.remove('hidden');
+            updateTooltipPosition(e);
+        }
+
+        function hideTooltip() {
+            tooltip.classList.add('hidden');
+        }
+
+        function updateTooltipPosition(e) {
+            const x = e.clientX + 15;
+            const y = e.clientY + 15;
+            tooltip.style.left = `${x}px`;
+            tooltip.style.top = `${y}px`;
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('game-notif-toast');
+            document.getElementById('toast-message').textContent = msg;
+            toast.style.opacity = '1';
+            setTimeout(() => {
+                toast.style.opacity = '0';
+            }, 2500);
+        }
+    </script>
+
+    <script>
+        const canvas = document.getElementById('dungeonCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = 800; 
+            canvas.height = 450; 
+        }
+        resizeCanvas();
+
+        // Fizik katsayıları
+        let gravity = 0.28; 
+        let playerX = 80;
+        let playerY = 400; // Adjusted for restricted height
+        let playerWidth = 22;
+        let playerHeight = 36;
+        let playerVx = 0;
+        let playerVy = 0;
+        let playerSpeed = 3.2; 
+        let isGrounded = false;
+        let jumpPower = -7.8; 
+        let facingDirection = 1; 
+
+        let doubleJumpAvailable = true;
+
+        let mouseX = 0;
+        let mouseY = 0;
+
+        let playerHp = 100;
+        let playerMaxHp = 100;
+        let playerGold = 150;
+        let dungeonFloor = 1;
+
+        let playerLevel = 1;
+        let playerXp = 0;
+        let playerNextXp = 100;
+        let statPoints = 0;
+        
+        let strengthPoints = 0;   // ATK
+        let defensePoints = 0;    // DEF
+        let speedPoints = 0;      // SPEED
+        let vitalityPoints = 0;   // MAX HP
+
+        let playerAtkBonus = 0;
+        let playerDefBonus = 0;
+        let playerSpeedBonus = 0;
+        let playerHpBonus = 0;
+
+        let cameraX = 0;
+        let cameraY = 0;
+        let worldWidth = 1400;
+        let worldHeight = 620; // RESTRICTED VERTICAL HEIGHT (reduced from 1000 to 620 for a snappier experience)
+
+        let screenShakeTime = 0;
+        let screenShakeIntensity = 0;
+        let hitStopFrames = 0; 
+
+        let playerKnockbackTimer = 0;
+
+        let isDefending = false; 
+        let rightClickActive = false;
+
+        let platforms = [];
+        let enemies = [];
+        let chests = [];
+        let projectiles = [];
+        let particles = [];
+        let floatingTexts = [];
+        let stairsGate = null;
+
+        let lastAttackTime = 0;
+        let comboCount = 0;
+        let lastComboTime = 0;
+        const COMBO_WINDOW = 750;
+
+        let activeKeys = {
+            moveLeft: false,
+            moveRight: false,
+            jump: false,
+            attack: false,
+            defend: false
+        };
+
+        window.addEventListener('keydown', (e) => {
+            if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].indexOf(e.code) > -1) {
+                e.preventDefault();
+            }
+
+            if (e.code === 'KeyA' || e.code === 'ArrowLeft') {
+                activeKeys.moveLeft = true;
+            }
+            if (e.code === 'KeyD' || e.code === 'ArrowRight') {
+                activeKeys.moveRight = true;
+            }
+            if (e.code === 'KeyW' || e.code === 'Space' || e.code === 'ArrowUp') {
+                if (!activeKeys.jump) {
+                    triggerPlayerJump();
+                }
+                activeKeys.jump = true;
+            }
+            if (e.code === 'KeyJ') {
+                triggerPlayerAttack();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'KeyA' || e.code === 'ArrowLeft') {
+                activeKeys.moveLeft = false;
+            }
+            if (e.code === 'KeyD' || e.code === 'ArrowRight') {
+                activeKeys.moveRight = false;
+            }
+            if (e.code === 'KeyW' || e.code === 'Space' || e.code === 'ArrowUp') {
+                activeKeys.jump = false;
+            }
+        });
+
+        canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+        
+        canvas.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            canvas.focus();
+            
+            if (e.button === 2) { 
+                rightClickActive = true;
+                playSound('click');
+            } else if (e.button === 0) { 
+                triggerPlayerAttack();
+            }
+        });
+
+        window.addEventListener('mouseup', (e) => {
+            if (e.button === 2) { 
+                rightClickActive = false;
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = (e.clientX - rect.left) * (canvas.width / rect.width) + cameraX;
+            mouseY = (e.clientY - rect.top) * (canvas.height / rect.height) + cameraY;
+        });
+
+        setTimeout(() => {
+            canvas.focus();
+        }, 300);
+
+        function triggerPlayerJump() {
+            if (isGrounded) {
+                playerVy = jumpPower;
+                isGrounded = false;
+                doubleJumpAvailable = true;
+                playSound('jump');
+                for (let i = 0; i < 6; i++) {
+                    spawnParticle(playerX + playerWidth/2, playerY + playerHeight, '#94a3b8', 3, (Math.random() - 0.5) * 3, -Math.random());
+                }
+            } else if (doubleJumpAvailable) {
+                playerVy = jumpPower * 0.88; 
+                doubleJumpAvailable = false;
+                playSound('jump');
+                for (let i = 0; i < 10; i++) {
+                    spawnParticle(playerX + playerWidth/2, playerY + playerHeight, '#38bdf8', 2.5, (Math.random() - 0.5) * 5, -Math.random() * 2);
+                }
+                spawnDamageText(playerX + playerWidth/2, playerY - 15, "✨ ÇİFT ZIPLAMA!", '#38bdf8', false);
+            }
+        }
+
+        const setupMobileButton = (id, keyStateName) => {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+            
+            const handlePress = (e) => {
+                e.preventDefault();
+                canvas.focus();
+                if (keyStateName === 'attack') {
+                    triggerPlayerAttack();
+                } else if (keyStateName === 'jump') {
+                    triggerPlayerJump();
+                } else {
+                    activeKeys[keyStateName] = true;
+                }
+            };
+
+            const handleRelease = (e) => {
+                e.preventDefault();
+                if (keyStateName !== 'attack' && keyStateName !== 'jump') {
+                    activeKeys[keyStateName] = false;
+                }
+            };
+
+            btn.addEventListener('touchstart', handlePress, {passive: false});
+            btn.addEventListener('touchend', handleRelease, {passive: false});
+            btn.addEventListener('mousedown', handlePress);
+            btn.addEventListener('mouseup', handleRelease);
+        };
+        
+        setupMobileButton('btn-left', 'moveLeft');
+        setupMobileButton('btn-right', 'moveRight');
+        setupMobileButton('btn-jump', 'jump');
+        setupMobileButton('btn-attack', 'attack');
+        setupMobileButton('btn-defend', 'defend');
+    </script>
+
+    <script>
+        function checkReachability() {
+            const cellSize = 25; 
+            const cols = Math.ceil(worldWidth / cellSize);
+            const rows = Math.ceil(worldHeight / cellSize);
+            
+            const grid = Array(rows).fill(null).map(() => Array(cols).fill(0));
+            
+            platforms.forEach(p => {
+                if (p.isSpike) return;
+                const colStart = Math.floor(p.x / cellSize);
+                const colEnd = Math.ceil((p.x + p.w) / cellSize);
+                const rowStart = Math.floor(p.y / cellSize);
+                const rowEnd = Math.ceil((p.y + p.h) / cellSize);
+                
+                for (let r = Math.max(0, rowStart); r < Math.min(rows, rowEnd); r++) {
+                    for (let c = Math.max(0, colStart); c < Math.min(cols, colEnd); c++) {
+                        grid[r][c] = 1; 
+                    }
+                }
+            });
+            
+            const visited = Array(rows).fill(null).map(() => Array(cols).fill(false));
+            const queue = [];
+            
+            const startC = Math.max(0, Math.min(cols - 1, Math.floor(playerX / cellSize)));
+            const startR = Math.max(0, Math.min(rows - 1, Math.floor(playerY / cellSize)));
+            
+            queue.push([startC, startR]);
+            visited[startR][startC] = true;
+            
+            let iterations = 0;
+            const maxIterations = 3500;
+            
+            while (queue.length > 0 && iterations < maxIterations) {
+                iterations++;
+                const [cx, cy] = queue.shift();
+                
+                const grounded = (cy + 1 < rows) && (grid[cy + 1][cx] === 1);
+                
+                const moves = [];
+                if (cx - 1 >= 0 && grid[cy][cx - 1] === 0) moves.push([cx - 1, cy]);
+                if (cx + 1 < cols && grid[cy][cx + 1] === 0) moves.push([cx + 1, cy]);
+                if (cy + 1 < rows && grid[cy + 1][cx] === 0) moves.push([cx, cy + 1]);
+                
+                if (grounded) {
+                    const jumpH = 4; 
+                    const jumpW = 6;
+                    
+                    for (let dy = 1; dy <= jumpH; dy++) {
+                        for (let dx = -jumpW; dx <= jumpW; dx++) {
+                            const tx = cx + dx;
+                            const ty = cy - dy;
+                            
+                            if (tx >= 0 && tx < cols && ty >= 0 && ty < rows) {
+                                if (grid[ty][tx] === 0) {
+                                    let blocked = false;
+                                    for (let checkY = 1; checkY < dy; checkY++) {
+                                        if (grid[cy - checkY][cx] === 1) {
+                                            blocked = true;
+                                            break;
+                                        }
+                                    }
+                                    if (!blocked) {
+                                        moves.push([tx, ty]);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                for (let [tx, ty] of moves) {
+                    if (!visited[ty][tx]) {
+                        visited[ty][tx] = true;
+                        queue.push([tx, ty]);
+                    }
+                }
+            }
+            
+            let gateReachable = false;
+            if (stairsGate) {
+                const tc = Math.floor((stairsGate.x + stairsGate.w/2) / cellSize);
+                const tr = Math.floor(stairsGate.y / cellSize);
+                for (let dy = -2; dy <= 2; dy++) {
+                    for (let dx = -2; dx <= 2; dx++) {
+                        const r = tr + dy;
+                        const c = tc + dx;
+                        if (r >= 0 && r < rows && c >= 0 && c < cols) {
+                            if (visited[r][c]) {
+                                gateReachable = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (gateReachable) break;
+                }
+            } else {
+                gateReachable = true;
+            }
+            
+            let chestsReachable = true;
+            chests.forEach(c => {
+                if (c.opened) return;
+                let chestReachable = false;
+                const tc = Math.floor(c.x / cellSize);
+                const tr = Math.floor(c.y / cellSize);
+                for (let dy = -2; dy <= 2; dy++) {
+                    for (let dx = -2; dx <= 2; dx++) {
+                        const r = tr + dy;
+                        const c = tc + dx;
+                        if (r >= 0 && r < rows && c >= 0 && c < cols) {
+                            if (visited[r][c]) {
+                                chestReachable = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (chestReachable) break;
+                }
+                if (!chestReachable) {
+                    chestsReachable = false;
+                }
+            });
+            
+            return gateReachable && chestsReachable;
+        }
+    </script>
+
+    <script>
+        function generateDungeonLevel() {
+            let maxAttempts = 30;
+            let attempt = 0;
+            let success = false;
+
+            while (attempt < maxAttempts && !success) {
+                platforms = [];
+                enemies = [];
+                chests = [];
+                projectiles = [];
+                particles = [];
+                floatingTexts = [];
+
+                worldWidth = 1400 + dungeonFloor * 60;
+                worldWidth = Math.min(worldWidth, 1900);
+                worldHeight = 620; // RESTRICTED HEIGHT
+
+                playerX = 80;
+                playerY = worldHeight - 120; // Adjusted
+                playerVx = 0;
+                playerVy = 0;
+                playerKnockbackTimer = 0;
+
+                // Bölüm Çeper Sınırları
+                platforms.push({ x: -15, y: 0, w: 20, h: worldHeight });
+                platforms.push({ x: worldWidth, y: 0, w: 20, h: worldHeight });
+                platforms.push({ x: 0, y: worldHeight - 40, w: worldWidth, h: 40 });
+
+                // Temel Tırmanış Omurgası (Snappy climbers fitted into tight vertical bounds)
+                let currentX = 100;
+                let currentY = worldHeight - 110; 
+                let generatedPlatforms = [];
+
+                // Başlangıç Güvenli Pedi
+                let startPad = { x: 50, y: worldHeight - 40, w: 150, h: 40 };
+                generatedPlatforms.push(startPad);
+
+                let stepDir = 1; 
+                while (currentY > 120) { // Limit adjusted for worldHeight = 620
+                    let pWidth = 140 + Math.random() * 60;
+                    let nextY = currentY - (50 + Math.random() * 12); // Shorter, reliable jumps
+                    let nextX;
+
+                    if (stepDir === 1) {
+                        nextX = currentX + (60 + Math.random() * 50);
+                        if (nextX + pWidth > worldWidth - 80) {
+                            nextX = worldWidth - pWidth - 80;
+                            stepDir = -1;
+                        }
+                    } else {
+                        nextX = currentX - (60 + Math.random() * 50);
+                        if (nextX < 80) {
+                            nextX = 80;
+                            stepDir = 1;
+                        }
+                    }
+
+                    let p = { x: nextX, y: nextY, w: pWidth, h: 20 };
+                    platforms.push(p);
+                    generatedPlatforms.push(p);
+
+                    currentX = nextX;
+                    currentY = nextY;
+                }
+
+                // Dekoratif Keşif Platformları
+                let extraPlatformsCount = 8;
+                for (let i = 0; i < extraPlatformsCount; i++) {
+                    let w = 100 + Math.random() * 80;
+                    let x = 100 + Math.random() * (worldWidth - 300);
+                    let y = 100 + Math.random() * 380; 
+                    
+                    let overlaps = platforms.some(p => Math.abs(p.y - y) < 40 && Math.abs(p.x - x) < 140);
+                    if (!overlaps) {
+                        platforms.push({ x, y, w, h: 20 });
+                    }
+                }
+
+                // Zemin Tuzakları (Dikenler)
+                let spikeCount = 3 + Math.floor(Math.random() * 2);
+                for (let i = 0; i < spikeCount; i++) {
+                    let spikeW = 50 + Math.random() * 50;
+                    let spikeX = 300 + Math.random() * (worldWidth - 600);
+                    if (spikeX > 250) { 
+                        platforms.push({ x: spikeX, y: worldHeight - 55, w: spikeW, h: 15, isSpike: true });
+                    }
+                }
+
+                // Sandık yerleşimi
+                let shuffledPlats = [...generatedPlatforms].sort(() => Math.random() - 0.5);
+                let chestCount = 3 + Math.floor(Math.random() * 2);
+                for (let i = 0; i < Math.min(chestCount, shuffledPlats.length); i++) {
+                    let p = shuffledPlats[i];
+                    let cx = p.x + (Math.random() * (p.w - 30)) + 5;
+                    let cy = p.y - 25;
+                    chests.push({ x: cx, y: cy, size: 24, opened: false });
+                }
+
+                // Seviye Çıkış Kapısı
+                let topPlats = generatedPlatforms.filter(p => p.y < 250).sort((a, b) => a.y - b.y);
+                if (topPlats.length > 0) {
+                    let p = topPlats[0];
+                    stairsGate = { x: p.x + p.w / 2 - 15, y: p.y - 45, w: 30, h: 45, reached: false };
+                } else {
+                    stairsGate = { x: worldWidth - 120, y: 120, w: 30, h: 45, reached: false };
+                }
+
+                success = checkReachability();
+                attempt++;
+            }
+
+            // Canavarların zorluk ölçekli yerleşimi
+            const monsterTemplates = [
+                { type: "slime", hp: 40, atk: 8, speed: 0.5, size: 16, emoji: "🟢" }, 
+                { type: "skeleton", hp: 65, atk: 14, speed: 0.7, size: 20, emoji: "💀" }, 
+                { type: "bat", hp: 30, atk: 6, speed: 1.0, size: 14, emoji: "🦇", isFlying: true } 
+            ];
+
+            let enemyCount = 4 + Math.floor(dungeonFloor * 1.0);
+            enemyCount = Math.min(enemyCount, 10); 
+
+            platforms.forEach((p, idx) => {
+                if (p.isSpike || idx % 2 !== 0 || enemies.length >= enemyCount) return;
+                let template = monsterTemplates[Math.floor(Math.random() * monsterTemplates.length)];
+                let m = JSON.parse(JSON.stringify(template));
+                m.hp = Math.round(m.hp * (1 + (dungeonFloor - 1) * 0.15));
+                m.atk = Math.round(m.atk * (1 + (dungeonFloor - 1) * 0.1));
+
+                let ex = p.x + p.w / 2 - m.size;
+                let ey = m.isFlying ? p.y - 80 - Math.random() * 50 : p.y - m.size * 2;
+
+                if (m.isFlying) {
+                    enemies.push({
+                        x: ex, y: ey,
+                        targetLeft: ex - 120, targetRight: ex + 120,
+                        ...m, dir: Math.random() < 0.5 ? 1 : -1,
+                        originalY: ey, swoopState: 'patrol'
+                    });
+                } else {
+                    enemies.push({
+                        x: ex, y: ey,
+                        targetLeft: p.x + 5, targetRight: p.x + p.w - m.size * 2 - 5,
+                        ...m, dir: Math.random() < 0.5 ? 1 : -1,
+                        actionTimer: 0, shootCooldown: 0
+                    });
+                }
+            });
+
+            // Kat Muhafızı Goblin
+            let highestPlats = platforms.filter(p => p.y < 300 && !p.isSpike);
+            let goblinSpawn = highestPlats.length > 0 ? highestPlats[0] : { x: worldWidth / 2, y: 180, w: 200 };
+            let goblinHp = 120 + (dungeonFloor - 1) * 20;
+            let goblinAtk = 24 + (dungeonFloor - 1) * 3;
+            enemies.push({
+                x: goblinSpawn.x + goblinSpawn.w / 2 - 15,
+                y: goblinSpawn.y - 60, 
+                targetLeft: goblinSpawn.x,
+                targetRight: goblinSpawn.x + goblinSpawn.w - 30,
+                type: "goblin",
+                hp: goblinHp,
+                atk: goblinAtk,
+                speed: 0.4 + (dungeonFloor * 0.04),
+                size: 28,
+                emoji: "👹",
+                dir: -1,
+                state: 'patrol',
+                actionTimer: 0,
+                attackVisualTimer: 0
+            });
+
+            updateMonsterUI();
+            showToast(`🏰 Kat ${dungeonFloor} oluşturuldu. Rotalar doğrulandı!`);
+        }
+
+        function updateMonsterUI() {
+            const alive = enemies.filter(e => e.hp > 0).length;
+            const el = document.getElementById('monsters-left-count');
+            if (alive > 0) {
+                el.textContent = `${alive} Canavar Kaldı`;
+                el.className = "text-sm font-bold text-rose-400";
+            } else {
+                el.textContent = "Geçit açıldı! Merdivene ulaş.";
+                el.className = "text-sm font-bold text-emerald-400";
+            }
+        }
+    </script>
+
+    <script>
+        function updatePlayerPhysics() {
+            isDefending = rightClickActive || activeKeys.defend;
+
+            let activeSpeed = playerSpeed + playerSpeedBonus + (speedPoints * 0.15);
+            
+            if (isDefending) {
+                activeSpeed *= 0.45; 
+            }
+
+            if (playerKnockbackTimer > 0) {
+                playerKnockbackTimer--;
+                playerVx *= 0.88; 
+            } else {
+                if (activeKeys.moveLeft) {
+                    playerVx = -activeSpeed;
+                    facingDirection = -1;
+                    if (isGrounded && Math.random() < 0.15) {
+                        spawnParticle(playerX + playerWidth/2, playerY + playerHeight, '#94a3b8', 2, -facingDirection, -0.5);
+                    }
+                } else if (activeKeys.moveRight) {
+                    playerVx = activeSpeed;
+                    facingDirection = 1;
+                    if (isGrounded && Math.random() < 0.15) {
+                        spawnParticle(playerX + playerWidth/2, playerY + playerHeight, '#94a3b8', 2, -facingDirection, -0.5);
+                    }
+                } else {
+                    playerVx *= 0.75;
+                }
+            }
+
+            playerVy += gravity;
+
+            // X Eksenli çarpışma çözümü
+            playerX += playerVx;
+            for (let block of platforms) {
+                if (playerX < block.x + block.w &&
+                    playerX + playerWidth > block.x &&
+                    playerY < block.y + block.h &&
+                    playerY + playerHeight > block.y) {
+
+                    if (block.isSpike) {
+                        playerDamageFeedback(15, -facingDirection);
+                        playerVy = -4.2; 
+                        continue;
+                    }
+
+                    if (playerVx > 0) { 
+                        playerX = block.x - playerWidth;
+                    } else if (playerVx < 0) { 
+                        playerX = block.x + block.w;
+                    }
+                    playerVx = 0;
+                }
+            }
+
+            // Y Eksenli çarpışma çözümü
+            isGrounded = false;
+            playerY += playerVy;
+            for (let block of platforms) {
+                if (playerX < block.x + block.w &&
+                    playerX + playerWidth > block.x &&
+                    playerY < block.y + block.h &&
+                    playerY + playerHeight > block.y) {
+
+                    if (block.isSpike) {
+                        playerDamageFeedback(15, -facingDirection);
+                        playerVy = -4.2; 
+                        continue;
+                    }
+
+                    if (playerVy > 0) { 
+                        playerY = block.y - playerHeight;
+                        playerVy = 0;
+                        isGrounded = true;
+                        doubleJumpAvailable = true; 
+                    } else if (playerVy < 0) { 
+                        playerY = block.y + block.h;
+                        playerVy = 0.5;
+                    }
+                }
+            }
+        }
+
+        function playerDamageFeedback(amount, forceDir = 0) {
+            let mitigated = Math.max(1, amount - (playerDefBonus + defensePoints * 2));
+            
+            if (isDefending) {
+                const shieldEquipped = equippedItems.shield !== null;
+                const blockPercent = shieldEquipped ? 0.90 : 0.50; 
+                mitigated = Math.round(mitigated * (1 - blockPercent));
+                
+                spawnDamageText(playerX + playerWidth/2, playerY - 15, "🛡️ BLOKE EDİLDİ!", '#38bdf8', true);
+                playSound('hit'); 
+
+                for (let i = 0; i < 6; i++) {
+                    spawnParticle(playerX + playerWidth/2, playerY + playerHeight/2, '#38bdf8', 3.5, (Math.random() - 0.5) * 5, -Math.random() * 4);
+                }
+            } else {
+                playSound('damage');
+                for (let i = 0; i < 8; i++) {
+                    spawnParticle(playerX + playerWidth/2, playerY + playerHeight/2, '#dc2626', 4, (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6);
+                }
+
+                playerKnockbackTimer = 15; 
+                let finalForceDir = forceDir !== 0 ? forceDir : -facingDirection;
+                playerVx = finalForceDir * 4.5;
+                playerVy = -3.5;
+            }
+
+            playerHp -= mitigated;
+            shakeScreen(isDefending ? 4 : 15, isDefending ? 3 : 8);
+            spawnDamageText(playerX + playerWidth/2, playerY - 5, `-${mitigated}`, isDefending ? '#60a5fa' : '#ef4444', !isDefending);
+            
+            updatePlayerStats();
+
+            if (playerHp <= 0) {
+                triggerGameOver(false);
+            }
+        }
+    </script>
+
+    <script>
+        function shakeScreen(intensity, duration) {
+            screenShakeIntensity = intensity;
+            screenShakeTime = duration;
+        }
+
+        function spawnParticle(x, y, color, size = 3, vx = 0, vy = 0, life = 30) {
+            particles.push({ x, y, color, size, vx, vy, life, maxLife: life });
+        }
+
+        function spawnDamageText(x, y, text, color, isCritical = false) {
+            floatingTexts.push({ x, y, text, color, isCritical, alpha: 1, timer: 45 });
+        }
+
+        function triggerHitStop(frames) {
+            hitStopFrames = frames;
+        }
+    </script>
+
+    <script>
+        function triggerPlayerAttack() {
+            if (isDefending) return;
+
+            const now = Date.now();
+            let attackCooldown = 350; 
+
+            if (now - lastComboTime > COMBO_WINDOW) {
+                comboCount = 0;
+            }
+            lastComboTime = now;
+
+            const weapon = equippedItems.weapon;
+            let subType = "fist";
+            let baseDmg = 10 + playerAtkBonus + (strengthPoints * 3);
+            let range = 45;
+            let sound = "hit";
+
+            const isFinisher = (comboCount === 2);
+            const comboMultiplier = isFinisher ? 1.8 : 1.0;
+
+            if (weapon) {
+                baseDmg = 10 + playerAtkBonus + (strengthPoints * 3) + (weapon.stats.atk || 0);
+                subType = weapon.subType;
+                
+                if (subType === "heavy") {
+                    attackCooldown = 850;
+                    range = 85;
+                    sound = "hit";
+                } else if (subType === "dagger") {
+                    attackCooldown = 180;
+                    range = 35;
+                } else if (subType === "bow") {
+                    attackCooldown = 400;
+                    sound = "shoot";
+                } else if (subType === "magic") {
+                    attackCooldown = 500;
+                    sound = "magic";
+                }
+            }
+
+            if (now - lastAttackTime < attackCooldown) return;
+            lastAttackTime = now;
+
+            playSound(sound);
+
+            const dmg = Math.round(baseDmg * comboMultiplier);
+
+            // Yay mekaniği
+            if (subType === "bow") {
+                const pCenterX = playerX + playerWidth / 2;
+                const pCenterY = playerY + playerHeight / 2 - 2;
+                
+                let dx = mouseX - pCenterX;
+                let dy = mouseY - pCenterY;
+                let dist = Math.hypot(dx, dy);
+                if (dist === 0) dist = 1;
+
+                const arrowSpeed = 8.5; 
+                const vx = (dx / dist) * arrowSpeed;
+                const vy = (dy / dist) * arrowSpeed;
+
+                facingDirection = mouseX > pCenterX ? 1 : -1;
+
+                projectiles.push({
+                    x: pCenterX,
+                    y: pCenterY,
+                    vx: vx, 
+                    vy: vy, 
+                    radius: 3,
+                    color: '#f59e0b',
+                    damage: dmg,
+                    isPlayerBullet: true,
+                    type: "arrow",
+                    gravityEffect: 0.05 
+                });
+                return;
+            }
+
+            // Asa Büyü Mekaniği
+            if (subType === "magic") {
+                const pCenterX = playerX + playerWidth / 2;
+                const pCenterY = playerY + playerHeight / 2 - 2;
+                
+                let dx = mouseX - pCenterX;
+                let dy = mouseY - pCenterY;
+                let dist = Math.hypot(dx, dy);
+                if (dist === 0) dist = 1;
+
+                const orbSpeed = 6.5; 
+                const vx = (dx / dist) * orbSpeed;
+                const vy = (dy / dist) * orbSpeed;
+
+                facingDirection = mouseX > pCenterX ? 1 : -1;
+
+                projectiles.push({
+                    x: pCenterX,
+                    y: pCenterY,
+                    vx: vx, 
+                    vy: vy,
+                    radius: 6,
+                    color: '#c084fc',
+                    damage: dmg,
+                    isPlayerBullet: true,
+                    type: "orb"
+                });
+                return;
+            }
+
+            let hitRegistered = false;
+            const slashX = facingDirection === 1 ? playerX + playerWidth : playerX - range;
+            const slashY = playerY + playerHeight / 2 - 25;
+            const slashW = range;
+            const slashH = 50;
+
+            particles.push({
+                x: playerX + (facingDirection === 1 ? playerWidth + 5 : -range),
+                y: playerY + playerHeight/2,
+                color: isFinisher ? 'rgba(239, 68, 68, 0.8)' : (subType === "heavy" ? 'rgba(244, 63, 94, 0.5)' : 'rgba(251, 191, 36, 0.5)'),
+                isSlash: true,
+                dir: facingDirection,
+                w: isFinisher ? range * 1.5 : range,
+                life: 10,
+                maxLife: 10
+            });
+
+            enemies.forEach(m => {
+                if (m.hp <= 0) return;
+
+                if (m.x < slashX + slashW &&
+                    m.x + m.size * 2 > slashX &&
+                    m.y < slashY + slashH &&
+                    m.y + m.size * 2 > slashY) {
+                    
+                    let finalDmg = dmg;
+                    let isCrit = false;
+
+                    if (subType === "dagger" && Math.random() < 0.3) {
+                        finalDmg *= 2.5;
+                        isCrit = true;
+                    }
+
+                    m.hp -= Math.round(finalDmg);
+                    hitRegistered = true;
+
+                    const knockback = isFinisher ? 25 : 10; 
+                    m.x += facingDirection * (subType === "heavy" ? knockback * 1.5 : knockback);
+                    
+                    const color = isCrit ? '#fbbf24' : (isFinisher ? '#f87171' : '#ef4444');
+                    const amount = isFinisher ? 15 : 6;
+                    for (let i = 0; i < amount; i++) {
+                        spawnParticle(m.x + m.size, m.y + m.size, color, isCrit ? 4 : 3, 
+                            (Math.random() - 0.5) * 8 + facingDirection * 3, (Math.random() - 0.5) * 6);
+                    }
+
+                    spawnDamageText(m.x + m.size, m.y - 10, Math.round(finalDmg), isCrit ? '#fbbf24' : '#f87171', isCrit);
+
+                    if (m.hp <= 0) {
+                        playerGold += 15;
+                        playSound('gold');
+                        updateGoldUI();
+                        
+                        let xpGained = m.type === "goblin" ? 80 : 25;
+                        playerXp += xpGained;
+                        spawnDamageText(m.x + m.size, m.y - 25, `+${xpGained} XP`, '#a78bfa', false);
+
+                        if (playerXp >= playerNextXp) {
+                            playerXp -= playerNextXp;
+                            playerLevel++;
+                            statPoints += 3; 
+                            playerNextXp = Math.round(playerNextXp * 1.5);
+                            playSound('levelUp');
+                            spawnDamageText(playerX + playerWidth/2, playerY - 40, "SEVİYE ATLADIN! 🎉", '#10b981', true);
+                            showToast(`🎉 Seviye Atladın! 3 Nitelik Puanı Kazandın!`);
+                        }
+                        updatePlayerStats();
+                        showToast(`💀 Canavar alt edildi!`);
+                        
+                        if (Math.random() < 0.6) {
+                            chests.push({
+                                x: m.x,
+                                y: m.y + m.size,
+                                size: 24,
+                                opened: false,
+                                drop: createRandomItem()
+                            });
+                        }
+                    }
+                }
+            });
+
+            if (hitRegistered) {
+                if (isFinisher) {
+                    triggerHitStop(10); 
+                    shakeScreen(20, 15);
+                    playSound('damage');
+                } else if (subType === "heavy") {
+                    triggerHitStop(6); 
+                    shakeScreen(12, 10);
+                    playSound('hit');
+                } else {
+                    triggerHitStop(2);
+                    shakeScreen(4, 5);
+                }
+                updateMonsterUI();
+            }
+
+            comboCount = (comboCount + 1) % 3;
+        }
+    </script>
+
+    <script>
+        function updateAllEntities() {
+            if (hitStopFrames > 0) {
+                hitStopFrames--;
+                return;
+            }
+
+            updatePlayerPhysics();
+
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                const p = projectiles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+
+                if (p.gravityEffect) {
+                    p.vy += p.gravityEffect;
+                }
+
+                if (p.x < 0 || p.x > worldWidth || p.y > worldHeight) {
+                    projectiles.splice(i, 1);
+                    continue;
+                }
+
+                let splitted = false;
+                for (let block of platforms) {
+                    if (p.x > block.x && p.x < block.x + block.w &&
+                        p.y > block.y && p.y < block.y + block.h) {
+                        for (let k = 0; k < 4; k++) {
+                            spawnParticle(p.x, p.y, p.color, 2, -p.vx * 0.3, (Math.random() - 0.5) * 4);
+                        }
+                        projectiles.splice(i, 1);
+                        splitted = true;
+                        break;
+                    }
+                }
+
+                if (splitted) continue;
+
+                if (p.isPlayerBullet) {
+                    for (let m of enemies) {
+                        if (m.hp <= 0) continue;
+                        const dx = p.x - (m.x + m.size);
+                        const dy = p.y - (m.y + m.size);
+                        const dist = Math.hypot(dx, dy);
+
+                        if (dist < m.size + p.radius) {
+                            m.hp -= p.damage;
+                            m.x += Math.sign(p.vx) * 6; 
+
+                            for (let k = 0; k < 6; k++) {
+                                spawnParticle(p.x, p.y, '#ef4444', 3, (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6);
+                            }
+
+                            spawnDamageText(m.x + m.size, m.y - 10, p.damage, '#f87171', false);
+                            projectiles.splice(i, 1);
+                            
+                            if (m.hp <= 0) {
+                                playerGold += 15;
+                                playSound('gold');
+                                updateGoldUI();
+                                
+                                let xpGained = m.type === "goblin" ? 80 : 25;
+                                playerXp += xpGained;
+                                spawnDamageText(m.x + m.size, m.y - 25, `+${xpGained} XP`, '#a78bfa', false);
+
+                                if (playerXp >= playerNextXp) {
+                                    playerXp -= playerNextXp;
+                                    playerLevel++;
+                                    statPoints += 3;
+                                    playerNextXp = Math.round(playerNextXp * 1.5);
+                                    playSound('levelUp');
+                                    spawnDamageText(playerX + playerWidth/2, playerY - 40, "SEVİYE ATLADIN! 🎉", '#10b981', true);
+                                    showToast(`🎉 Seviye Atladın!`);
+                                }
+                                updatePlayerStats();
+                                showToast(`💀 Canavar alt edildi!`);
+                            }
+                            updateMonsterUI();
+                            break;
+                        }
+                    }
+                } else {
+                    const dx = p.x - (playerX + playerWidth / 2);
+                    const dy = p.y - (playerY + playerHeight / 2);
+                    const dist = Math.hypot(dx, dy);
+
+                    if (dist < (playerWidth / 2 + 5) + p.radius) {
+                        playerDamageFeedback(p.damage, Math.sign(p.vx));
+                        projectiles.splice(i, 1);
+                    }
+                }
+            }
+
+            enemies.forEach(m => {
+                if (m.hp <= 0) return;
+
+                if (m.type === "slime") {
+                    m.actionTimer = (m.actionTimer || 0) + 1;
+                    m.x += m.speed * m.dir;
+                    if (m.x <= m.targetLeft) m.dir = 1;
+                    if (m.x >= m.targetRight) m.dir = -1;
+
+                    const distToPlayer = Math.hypot((playerX + playerWidth/2) - (m.x + m.size), (playerY + playerHeight/2) - (m.y + m.size));
+                    if (distToPlayer < 220 && m.actionTimer % 130 === 0) {
+                        const angle = Math.atan2((playerY + playerHeight/2) - (m.y + m.size), (playerX + playerWidth/2) - (m.x + m.size));
+                        
+                        projectiles.push({
+                            x: m.x + m.size,
+                            y: m.y + m.size,
+                            vx: Math.cos(angle) * 3, 
+                            vy: Math.sin(angle) * 3, 
+                            radius: 5,
+                            color: '#10b981', 
+                            damage: Math.round(m.atk * 0.9),
+                            isPlayerBullet: false,
+                            type: "acid"
+                        });
+
+                        for (let k = 0; k < 5; k++) {
+                            spawnParticle(m.x + m.size, m.y + m.size, '#10b981', 2, (Math.random() - 0.5) * 4, (Math.random() - 0.5) * 4);
+                        }
+                    }
+                }
+
+                else if (m.type === "skeleton") {
+                    if (m.shootCooldown === undefined) m.shootCooldown = 0;
+                    if (m.shootCooldown > 0) m.shootCooldown--;
+
+                    const distToPlayerX = Math.abs((playerX + playerWidth/2) - (m.x + m.size));
+                    const distToPlayerY = Math.abs((playerY + playerHeight/2) - (m.y + m.size));
+
+                    if (distToPlayerX < 240 && distToPlayerY < 120) {
+                        m.dir = (playerX + playerWidth/2) > (m.x + m.size) ? 1 : -1;
+
+                        if (m.shootCooldown === 0) {
+                            m.shootCooldown = 180; 
+
+                            const targetDX = (playerX + playerWidth/2) - (m.x + m.size);
+                            const targetDY = (playerY + playerHeight/2) - (m.y + m.size);
+                            
+                            const vx = targetDX / 75; 
+                            const vy = (targetDY - 50) / 75; 
+
+                            projectiles.push({
+                                x: m.x + m.size,
+                                y: m.y + m.size,
+                                vx: vx,
+                                vy: vy,
+                                radius: 4,
+                                color: '#cbd5e1', 
+                                damage: m.atk,
+                                isPlayerBullet: false,
+                                type: "bone",
+                                gravityEffect: 0.12 
+                            });
+
+                            for (let k = 0; k < 4; k++) {
+                                spawnParticle(m.x + m.size, m.y + m.size, '#cbd5e1', 3, (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 3);
+                            }
+                        }
+                    } else {
+                        m.x += m.speed * m.dir;
+                        if (m.x <= m.targetLeft) m.dir = 1;
+                        if (m.x >= m.targetRight) m.dir = -1;
+                    }
+                }
+
+                else if (m.type === "bat") {
+                    if (!m.swoopState) {
+                        m.swoopState = 'patrol';
+                        m.originalY = m.y;
+                    }
+
+                    const targetX = playerX + playerWidth / 2;
+                    const targetY = playerY + playerHeight / 2;
+                    const dx = targetX - (m.x + m.size);
+
+                    if (m.swoopState === 'patrol') {
+                        m.x += m.speed * m.dir;
+                        m.y = m.originalY + Math.sin(Date.now() / 250) * 1.5; 
+                        if (m.x <= m.targetLeft) m.dir = 1;
+                        if (m.x >= m.targetRight) m.dir = -1;
+
+                        if (Math.abs(dx) < 110 && targetY > m.y && targetY - m.y < 220) {
+                            m.swoopState = 'dive';
+                            m.swoopTargetX = targetX - m.size;
+                            m.swoopTargetY = targetY - m.size;
+                        }
+                    } else if (m.swoopState === 'dive') {
+                        const sAngle = Math.atan2(m.swoopTargetY - m.y, m.swoopTargetX - m.x);
+                        m.x += Math.cos(sAngle) * 3.2; 
+                        m.y += Math.sin(sAngle) * 3.2; 
+
+                        if (Math.random() < 0.4) {
+                            spawnParticle(m.x + m.size, m.y + m.size, '#a855f7', 2, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2);
+                        }
+
+                        const distToTarget = Math.hypot(m.swoopTargetX - m.x, m.swoopTargetY - m.y);
+                        if (distToTarget < 15 || m.y >= worldHeight - 60) {
+                            m.swoopState = 'return';
+                        }
+                    } else if (m.swoopState === 'return') {
+                        const dyOriginal = m.originalY - m.y;
+                        m.y -= 1.3; 
+                        m.x += m.speed * m.dir * 0.4;
+
+                        if (Math.abs(dyOriginal) < 6) {
+                            m.swoopState = 'patrol';
+                        }
+                    }
+                }
+
+                else if (m.type === "goblin") {
+                    if (m.state === undefined) {
+                        m.state = 'patrol';
+                        m.actionTimer = 0;
+                        m.attackVisualTimer = 0;
+                    }
+
+                    if (m.attackVisualTimer > 0) m.attackVisualTimer--;
+
+                    const distToPlayerX = (playerX + playerWidth/2) - (m.x + m.size);
+                    const distToPlayerY = Math.abs((playerY + playerHeight/2) - (m.y + m.size));
+
+                    if (m.state === 'patrol') {
+                        m.x += m.speed * m.dir;
+                        if (m.x <= m.targetLeft) m.dir = 1;
+                        if (m.x >= m.targetRight) m.dir = -1;
+
+                        if (Math.abs(distToPlayerX) < 220 && distToPlayerY < 60) {
+                            m.state = 'charge';
+                            playSound('damage'); 
+                            showToast("👹 Kat Muhafızı Goblin öfkeyle hücuma kalktı!");
+                        }
+                    } else if (m.state === 'charge') {
+                        m.dir = distToPlayerX > 0 ? 1 : -1;
+                        m.x += m.speed * 1.6 * m.dir; 
+
+                        if (Math.random() < 0.3) {
+                            spawnParticle(m.x + m.size, m.y + m.size * 1.5, '#ef4444', 3, -m.dir * 2, -Math.random() * 2);
+                        }
+
+                        if (Math.abs(distToPlayerX) > 280 || distToPlayerY > 100) {
+                            m.state = 'patrol';
+                        }
+
+                        if (Math.abs(distToPlayerX) < 55) {
+                            m.state = 'cleave';
+                            m.actionTimer = 50; 
+                        }
+                    } else if (m.state === 'cleave') {
+                        m.actionTimer--;
+                        m.x += Math.sin(m.actionTimer / 2) * 0.8; 
+
+                        if (m.actionTimer === 0) {
+                            m.attackVisualTimer = 12;
+                            playSound('hit');
+                            shakeScreen(12, 10);
+
+                            const swingRange = 70;
+                            const hitPlayer = (m.dir === 1 && playerX > m.x && playerX < m.x + m.size*2 + swingRange) ||
+                                              (m.dir === -1 && playerX < m.x && playerX > m.x - swingRange);
+
+                            if (hitPlayer && Math.abs(playerY - m.y) < 55) {
+                                playerDamageFeedback(Math.round(m.atk * 1.3), m.dir); 
+                                playerVx = m.dir * 4.5; 
+                                playerVy = -2;
+                            }
+
+                            particles.push({
+                                x: m.x + (m.dir === 1 ? m.size * 2 : -swingRange),
+                                y: m.y + m.size,
+                                color: 'rgba(239, 68, 68, 0.75)', 
+                                isSlash: true,
+                                dir: m.dir,
+                                w: swingRange,
+                                life: 10,
+                                maxLife: 10
+                            });
+
+                            m.state = 'cooldown';
+                            m.actionTimer = 100; 
+                        }
+                    } else if (m.state === 'cooldown') {
+                        m.actionTimer--;
+                        m.x -= m.speed * 0.3 * m.dir;
+
+                        if (m.actionTimer === 0) {
+                            m.state = 'charge'; 
+                        }
+                    }
+                }
+
+                const dx = (playerX + playerWidth/2) - (m.x + m.size);
+                const dy = (playerY + playerHeight/2) - (m.y + m.size);
+                const dist = Math.hypot(dx, dy);
+
+                if (dist < m.size + 14) {
+                    playerDamageFeedback(m.atk, Math.sign(dx));
+                }
+            });
+
+            chests.forEach(c => {
+                if (c.opened) return;
+                const dist = Math.hypot((playerX + playerWidth/2) - c.x, (playerY + playerHeight/2) - c.y);
+                if (dist < playerWidth + c.size) {
+                    c.opened = true;
+                    playSound('loot');
+                    
+                    const newItem = c.drop ? c.drop : createRandomItem();
+                    if (autoAddItemToGrid(newItem)) {
+                        showToast(`🎁 Sandıktan Çıktı: ${newItem.name}`);
+                    } else {
+                        showToast("🎒 Çanta Dolu! Ganimeti alamadın.");
+                    }
+                }
+            });
+
+            if (stairsGate) {
+                const dist = Math.hypot((playerX + playerWidth/2) - stairsGate.x, (playerY + playerHeight/2) - stairsGate.y);
+                if (dist < playerWidth + 20) {
+                    const alive = enemies.filter(e => e.hp > 0).length;
+                    if (alive === 0) {
+                        dungeonFloor++;
+                        playSound('loot');
+                        generateDungeonLevel();
+                    } else {
+                        showToast("⚠️ Kapı kilitli! Katta kalan canavarları temizle.");
+                    }
+                }
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const pt = particles[i];
+                if (pt.isSlash) {
+                    pt.life--;
+                    if (pt.life <= 0) particles.splice(i, 1);
+                    continue;
+                }
+                pt.x += pt.vx;
+                pt.y += pt.vy;
+                pt.life--;
+                if (pt.life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                const ft = floatingTexts[i];
+                ft.y -= 0.6;
+                ft.timer--;
+                if (ft.timer <= 0) {
+                    floatingTexts.splice(i, 1);
+                }
+            }
+        }
+    </script>
+
+    <script>
+        function renderScene() {
+            let targetCamX = playerX - canvas.width / 2;
+            let targetCamY = playerY - canvas.height / 2;
+            
+            targetCamX = Math.max(0, Math.min(worldWidth - canvas.width, targetCamX));
+            targetCamY = Math.max(0, Math.min(worldHeight - canvas.height, targetCamY));
+
+            cameraX += (targetCamX - cameraX) * 0.08;
+            cameraY += (targetCamY - cameraY) * 0.08;
+
+            ctx.save();
+            
+            if (screenShakeTime > 0) {
+                const dx = (Math.random() - 0.5) * screenShakeIntensity;
+                const dy = (Math.random() - 0.5) * screenShakeIntensity;
+                ctx.translate(dx, dy);
+                screenShakeTime--;
+            }
+
+            ctx.translate(-Math.round(cameraX), -Math.round(cameraY));
+
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, worldWidth, worldHeight);
+
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
+            const size = 40;
+            for (let x = 0; x < worldWidth; x += size) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, worldHeight);
+                ctx.stroke();
+            }
+            for (let y = 0; y < worldHeight; y += size) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(worldWidth, y);
+                ctx.stroke();
+            }
+
+            if (stairsGate) {
+                const alive = enemies.filter(e => e.hp > 0).length;
+                ctx.fillStyle = alive === 0 ? '#10b981' : '#475569';
+                ctx.fillRect(stairsGate.x, stairsGate.y, stairsGate.w, stairsGate.h);
+                ctx.strokeStyle = '#047857';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(stairsGate.x, stairsGate.y, stairsGate.w, stairsGate.h);
+                ctx.fillStyle = '#f8fafc';
+                ctx.font = '10px sans-serif';
+                ctx.fillText("KAPI", stairsGate.x + 4, stairsGate.y + 25);
+            }
+
+            for (let block of platforms) {
+                if (block.isSpike) {
+                    ctx.fillStyle = '#f43f5e';
+                    ctx.beginPath();
+                    for (let x = block.x; x < block.x + block.w; x += 15) {
+                        ctx.moveTo(x, block.y + block.h);
+                        ctx.lineTo(x + 7.5, block.y);
+                        ctx.lineTo(x + 15, block.y + block.h);
+                    }
+                    ctx.fill();
+                } else {
+                    ctx.fillStyle = '#1e293b';
+                    ctx.fillRect(block.x, block.y, block.w, block.h);
+                    ctx.strokeStyle = '#334155';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(block.x, block.y, block.w, block.h);
+                }
+            }
+
+            chests.forEach(c => {
+                if (c.opened) {
+                    ctx.font = '18px Arial';
+                    ctx.fillText("📂", c.x - 9, c.y + 8);
+                } else {
+                    ctx.font = '22px Arial';
+                    ctx.fillText("🎁", c.x - 11, c.y + 10);
+                }
+            });
+
+            projectiles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            enemies.forEach(m => {
+                if (m.hp <= 0) return;
+
+                ctx.save();
+                if (m.type === "goblin" && m.state === "charge") {
+                    ctx.shadowColor = '#ef4444';
+                    ctx.shadowBlur = 10;
+                }
+                ctx.font = `${m.size * 1.8}px Arial`;
+                ctx.fillText(m.emoji, m.x, m.y + m.size * 1.5);
+                ctx.restore();
+
+                const bw = m.size * 2;
+                ctx.fillStyle = '#ef4444';
+                ctx.fillRect(m.x, m.y - 8, bw, 4);
+                ctx.fillStyle = '#22c55e';
+                ctx.fillRect(m.x, m.y - 8, bw * (m.hp / (m.hp > 100 ? m.hp : 100)), 4);
+            });
+
+            particles.forEach(p => {
+                if (p.isSlash) {
+                    ctx.strokeStyle = p.color;
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    if (p.dir === 1) {
+                        ctx.arc(p.x, p.y, p.w, -Math.PI/3, Math.PI/3);
+                    } else {
+                        ctx.arc(p.x, p.y, p.w, Math.PI - Math.PI/3, Math.PI + Math.PI/3);
+                    }
+                    ctx.stroke();
+                } else {
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(p.x, p.y, p.size, p.size);
+                }
+            });
+
+            // --- DECOUPLING & AIM-MATCHED PLAYER RENDER ---
+            // Karakterin başı imlecin pozisyonunu takip edecek şekilde döndürülmektedir.
+            ctx.save();
+            ctx.translate(playerX + playerWidth/2, playerY + playerHeight/2);
+            
+            // Mouse imlecinin sola mı sağa mı baktığını hesaplayalım
+            const isCursorLeft = (mouseX < playerX + playerWidth/2);
+            
+            // 1) Vücut Parçasını (👕) Çizelim
+            ctx.save();
+            if (isCursorLeft) {
+                ctx.scale(-1, 1);
+            }
+            ctx.font = '24px Arial';
+            ctx.fillText("👕", -12, 16); // Gövde pozisyonu
+            if (isDefending) {
+                ctx.fillText("🛡️", 8, 8); // Kalkan ön yüzey
+            }
+            ctx.restore();
+
+            // 2) Kafa Parçasını (🧑‍🌾) Çizelim ve İmleç Açısına Göre Döndürelim
+            ctx.save();
+            ctx.translate(0, -6); // Kafanın omuzlar üzerindeki dikey konumu
+            
+            // Kafadan imlece giden doğrultu açısı
+            let angleToMouse = Math.atan2(mouseY - (playerY + playerHeight/2 - 6), mouseX - (playerX + playerWidth/2));
+            
+            if (isCursorLeft) {
+                // Sola bakarken flip simetrisi korunsun diye açıyı düzenliyoruz
+                ctx.rotate(angleToMouse + Math.PI);
+                ctx.scale(-1, 1);
+            } else {
+                ctx.rotate(angleToMouse);
+            }
+            
+            ctx.font = '22px Arial';
+            ctx.fillText("🧑‍🌾", -11, 7); // Kafa emojisi merkezleniyor
+            ctx.restore();
+            
+            ctx.restore(); // Character render complete
+
+            // --- NİŞAN ALMA TRAJECTORY HATTI ---
+            const weapon = equippedItems.weapon;
+            if (weapon && (weapon.subType === "bow" || weapon.subType === "magic")) {
+                const pCenterX = playerX + playerWidth / 2;
+                const pCenterY = playerY + playerHeight / 2;
+
+                let angle = Math.atan2(mouseY - pCenterY, mouseX - pCenterX);
+
+                ctx.save();
+                ctx.translate(pCenterX, pCenterY);
+                ctx.rotate(angle);
+
+                ctx.strokeStyle = weapon.subType === "bow" ? '#f59e0b' : '#c084fc';
+                ctx.fillStyle = weapon.subType === "bow" ? '#f59e0b' : '#c084fc';
+                ctx.lineWidth = 3;
+
+                ctx.beginPath();
+                ctx.moveTo(15, 0);
+                ctx.lineTo(35, 0);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(35, -4);
+                ctx.lineTo(43, 0);
+                ctx.lineTo(35, 4);
+                ctx.fill();
+                ctx.restore();
+
+                let simX = pCenterX;
+                let simY = pCenterY - 2; 
+
+                let dx = mouseX - pCenterX;
+                let dy = mouseY - pCenterY;
+                let dist = Math.hypot(dx, dy);
+                if (dist === 0) dist = 1;
+
+                const isBow = weapon.subType === "bow";
+                const speed = isBow ? 8.5 : 6.5; 
+                const gravityEffect = isBow ? 0.05 : 0; 
+
+                let simVx = (dx / dist) * speed;
+                let simVy = (dy / dist) * speed;
+
+                ctx.save();
+                ctx.strokeStyle = isBow ? 'rgba(245, 158, 11, 0.55)' : 'rgba(192, 132, 252, 0.55)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([4, 4]); 
+                ctx.beginPath();
+                ctx.moveTo(simX, simY);
+
+                let hitRegistered = false;
+                const maxSteps = 150; 
+
+                for (let step = 0; step < maxSteps; step++) {
+                    simX += simVx;
+                    simY += simVy;
+                    simVy += gravityEffect;
+
+                    ctx.lineTo(simX, simY);
+
+                    if (simX < 0 || simX > worldWidth || simY > worldHeight) {
+                        break;
+                    }
+
+                    let hitBlock = null;
+                    for (let block of platforms) {
+                        if (simX > block.x && simX < block.x + block.w &&
+                            simY > block.y && simY < block.y + block.h) {
+                            hitBlock = block;
+                            break;
+                        }
+                    }
+
+                    if (hitBlock) {
+                        hitRegistered = true;
+                        ctx.stroke();
+
+                        ctx.beginPath();
+                        ctx.arc(simX, simY, 6, 0, Math.PI * 2);
+                        ctx.fillStyle = isBow ? 'rgba(245, 158, 11, 0.8)' : 'rgba(192, 132, 252, 0.8)';
+                        ctx.fill();
+
+                        ctx.strokeStyle = isBow ? '#f59e0b' : '#c084fc';
+                        ctx.lineWidth = 1.2;
+                        ctx.setLineDash([]);
+                        ctx.beginPath();
+                        ctx.arc(simX, simY, 11, 0, Math.PI * 2);
+                        ctx.stroke();
+                        break;
+                    }
+                }
+
+                if (!hitRegistered) {
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+
+            if (isDefending) {
+                ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(playerX + playerWidth/2, playerY + playerHeight/2, 28, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            floatingTexts.forEach(ft => {
+                ctx.fillStyle = ft.color;
+                ctx.font = ft.isCritical ? 'bold 14px Arial' : 'bold 11px Arial';
+                ctx.fillText(ft.text, ft.x, ft.y);
+            });
+
+            ctx.restore(); // World transformation ends
+
+            // --- MINIMAP HUD OVERLAY (ALWAYS DRAWN VISIBLE IN CORNER) ---
+            // Minimap dikey harita kısıtlaması sonrasında canavarları ve hedefleri anlık gösterir.
+            const mapW = 145;
+            const mapH = 92;
+            const mapX = canvas.width - mapW - 15;
+            const mapY = 15;
+
+            // Arka Plan Çerçevesi
+            ctx.fillStyle = 'rgba(2, 6, 23, 0.85)';
+            ctx.strokeStyle = 'rgba(51, 65, 85, 0.85)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(mapX, mapY, mapW, mapH, 10);
+            ctx.fill();
+            ctx.stroke();
+
+            // Başlık Etiketi
+            ctx.fillStyle = '#f59e0b';
+            ctx.font = '900 8px sans-serif';
+            ctx.fillText("📡 HARİTA TAKİBİ", mapX + 8, mapY + 12);
+
+            // Projeksiyon Ölçeklendirme Faktörleri (Map boundary matching)
+            const mapPaddingX = 6;
+            const mapPaddingY = 18;
+            const simAreaW = mapW - mapPaddingX * 2;
+            const simAreaH = mapH - mapPaddingY - 6;
+
+            const scaleX = simAreaW / worldWidth;
+            const scaleY = simAreaH / worldHeight;
+
+            // 1) Platformları çizelim
+            platforms.forEach(block => {
+                const bx = mapX + mapPaddingX + block.x * scaleX;
+                const by = mapY + mapPaddingY + block.y * scaleY;
+                const bw = block.w * scaleX;
+                const bh = block.h * scaleY;
+
+                ctx.fillStyle = block.isSpike ? 'rgba(239, 68, 68, 0.7)' : 'rgba(100, 116, 139, 0.6)';
+                ctx.fillRect(bx, by, Math.max(1, bw), Math.max(1, bh));
+            });
+
+            // 2) Çıkış Kapısını çizelim (Yeşil)
+            if (stairsGate) {
+                const gx = mapX + mapPaddingX + stairsGate.x * scaleX;
+                const gy = mapY + mapPaddingY + stairsGate.y * scaleY;
+                const gw = stairsGate.w * scaleX;
+                const gh = stairsGate.h * scaleY;
+                ctx.fillStyle = '#10b981';
+                ctx.fillRect(gx, gy, Math.max(2, gw), Math.max(3, gh));
+            }
+
+            // 3) Sandıkları çizelim (Altın sarısı)
+            chests.forEach(c => {
+                if (c.opened) return;
+                const cx = mapX + mapPaddingX + c.x * scaleX;
+                const cy = mapY + mapPaddingY + c.y * scaleY;
+                ctx.fillStyle = '#fb923c';
+                ctx.beginPath();
+                ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // 4) Kalan Canavarları Çizelim (Kırmızı ve Parlayan Pulsing Dotlar)
+            enemies.forEach(m => {
+                if (m.hp <= 0) return;
+                const mx = mapX + mapPaddingX + (m.x + m.size) * scaleX;
+                const my = mapY + mapPaddingY + (m.y + m.size) * scaleY;
+
+                // Pulsing glow for optimal search visibility
+                const glow = Math.sin(Date.now() / 150) * 1.5 + 2.5;
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.35)';
+                ctx.beginPath();
+                ctx.arc(mx, my, glow + 2, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.arc(mx, my, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // 5) Oyuncunun Konumunu Çizelim (Açık Mavi/Turkuaz parlayan dot)
+            const px = mapX + mapPaddingX + (playerX + playerWidth / 2) * scaleX;
+            const py = mapY + mapPaddingY + (playerY + playerHeight / 2) * scaleY;
+
+            const playerGlow = Math.sin(Date.now() / 200) * 2 + 3;
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.4)';
+            ctx.beginPath();
+            ctx.arc(px, py, playerGlow + 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#38bdf8';
+            ctx.beginPath();
+            ctx.arc(px, py, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    </script>
+
+    <script>
+        function upgradeStat(stat) {
+            if (statPoints <= 0) return;
+            statPoints--;
+            
+            if (stat === 'atk') strengthPoints++;
+            else if (stat === 'def') defensePoints++;
+            else if (stat === 'speed') speedPoints++;
+            else if (stat === 'hp') {
+                vitalityPoints++;
+                playerHp += 15; 
+            }
+            
+            playSound('loot');
+            updatePlayerStats();
+            updateForgeUI();
+        }
+
+        function updatePlayerStats() {
+            playerAtkBonus = 0;
+            playerDefBonus = 0;
+            playerSpeedBonus = 0;
+            playerHpBonus = 0;
+
+            for (let key in equippedItems) {
+                const item = equippedItems[key];
+                if (item) {
+                    if (item.stats.atk) playerAtkBonus += item.stats.atk;
+                    if (item.stats.def) playerDefBonus += item.stats.def;
+                    if (item.stats.speed) playerSpeedBonus += item.stats.speed;
+                    if (item.stats.hp) playerHpBonus += item.stats.hp;
+                }
+            }
+
+            const currentMaxHp = playerMaxHp + playerHpBonus + (vitalityPoints * 15);
+            if (playerHp > currentMaxHp) playerHp = currentMaxHp;
+
+            const minDmg = 10 + playerAtkBonus + (strengthPoints * 3);
+            const maxDmg = 15 + playerAtkBonus + (strengthPoints * 3);
+            
+            document.getElementById('stat-atk').textContent = `${minDmg}-${maxDmg}`;
+            document.getElementById('stat-def').textContent = `${5 + playerDefBonus + (defensePoints * 2)}`;
+            
+            const finalSpeed = playerSpeed + playerSpeedBonus + (speedPoints * 0.15);
+            document.getElementById('stat-speed').textContent = `${finalSpeed.toFixed(1)}`;
+            document.getElementById('stat-maxhp').textContent = currentMaxHp;
+
+            document.getElementById('stat-level').textContent = playerLevel;
+            document.getElementById('stat-xp-text').textContent = `${playerXp}/${playerNextXp} XP`;
+            const xpPct = (playerXp / playerNextXp) * 100;
+            document.getElementById('stat-xp-bar').style.width = `${xpPct}%`;
+
+            const ptsDisplay = document.getElementById('stat-points-display');
+            const ptsCount = document.getElementById('stat-points-count');
+            const btns = ['btn-up-atk', 'btn-up-def', 'btn-up-speed', 'btn-up-hp'];
+            
+            if (statPoints > 0) {
+                ptsDisplay.classList.remove('hidden');
+                ptsCount.textContent = statPoints;
+                btns.forEach(id => document.getElementById(id).classList.remove('hidden'));
+            } else {
+                ptsDisplay.classList.add('hidden');
+                btns.forEach(id => document.getElementById(id).classList.add('hidden'));
+            }
+
+            document.getElementById('player-floor-text').textContent = `Kat ${dungeonFloor}`;
+            updateHpUI();
+        }
+
+        function updateHpUI() {
+            const currentMaxHp = playerMaxHp + playerHpBonus + (vitalityPoints * 15);
+            document.getElementById('player-hp-text').textContent = `${playerHp}/${currentMaxHp}`;
+        }
+
+        function updateGoldUI() {
+            document.getElementById('player-gold-text').textContent = playerGold;
+        }
+
+        function triggerGameOver(victory) {
+            const overlay = document.getElementById('game-overlay-screen');
+            const title = document.getElementById('overlay-title');
+            const desc = document.getElementById('overlay-desc');
+            const icon = document.getElementById('overlay-icon');
+
+            if (victory) {
+                icon.textContent = "👑";
+                title.textContent = "KAZANDIN!";
+                desc.textContent = "Zindanın tüm katlarını aşıp efsanevi bir kahraman oldun!";
+            } else {
+                icon.textContent = "💀";
+                title.textContent = "ÖLDÜN!";
+                desc.textContent = "Düşmanlar seni yok etti. Eşyalarını organize edip tekrar dene!";
+            }
+            overlay.classList.remove('hidden');
+        }
+    </script>
+
+    <script>
+        let lastTime = 0;
+        const fpsInterval = 1000 / 60; 
+
+        function gameLoop(currentTime) {
+            requestAnimationFrame(gameLoop);
+            
+            if (!currentTime) currentTime = performance.now();
+            const elapsed = currentTime - lastTime;
+            
+            if (elapsed >= fpsInterval) {
+                lastTime = currentTime - (elapsed % fpsInterval);
+                
+                updateAllEntities();
+                renderScene();
+            }
+        }
+
+        function restartGame() {
+            playerHp = 100;
+            playerGold = 150;
+            dungeonFloor = 1;
+            playerKnockbackTimer = 0;
+
+            playerLevel = 1;
+            playerXp = 0;
+            playerNextXp = 100;
+            statPoints = 0;
+            strengthPoints = 0;
+            defensePoints = 0;
+            speedPoints = 0;
+            vitalityPoints = 0;
+
+            document.getElementById('game-overlay-screen').classList.add('hidden');
+
+            inventoryGrid = Array(GRID_ROWS).fill(null).map(() => Array(GRID_COLS).fill(null));
+            itemsDb = {};
+
+            for (let key in equippedItems) {
+                unequipItem(key);
+            }
+
+            for (let key in forgeSlots) {
+                unequipForgeItem(key);
+            }
+
+            const sword = createRandomItem();
+            sword.name = "Demir Kılıç";
+            sword.type = "weapon";
+            sword.subType = "sword";
+            sword.icon = "🗡️";
+            sword.width = 1;
+            sword.height = 3;
+            sword.stats = { atk: 12 };
+            autoAddItemToGrid(sword);
+
+            const shield = createRandomItem();
+            shield.name = "Tahta Kalkan";
+            shield.type = "shield";
+            shield.icon = "🛡️";
+            shield.width = 2;
+            shield.height = 2;
+            shield.stats = { def: 6 };
+            autoAddItemToGrid(shield);
+
+            const potion = createRandomItem();
+            potion.name = "Şifa İksiri";
+            potion.type = "potion";
+            potion.icon = "🧪";
+            potion.width = 1;
+            potion.height = 1;
+            potion.stats = { heal: 40 };
+            autoAddItemToGrid(potion);
+
+            generateDungeonLevel();
+            renderInventory();
+            updatePlayerStats();
+            updateGoldUI();
+            updateForgeUI();
+
+            document.getElementById('dungeonCanvas').focus();
+        }
+
+        window.onload = function() {
+            initDragEngine();
+            restartGame();
+            lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        };
+    </script>
+</body>
+</html>
